@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZAVIS™ LAB v6.1 (Stable)</title>
+
+  <!-- PWA 설정 -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#050709" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZAVIS™ LAB v6.1 (Stable)</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- 폰트 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- TradingView 차트 라이브러리 -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+</head>
+<body>
+    <!-- 상단 헤더 -->
+    <header class="top-header">
+        <h1 class="app-title">ZAVIS™ LAB</h1>
+        <p class="app-sub">Made by JYG</p>
+        <p class="app-sub app-sub-engine">Advanced Stock Analysis Engine v6.1 • Stable Build</p>
+
+        <!-- 매크로 바 -->
+        <div class="macro-row">
+            <div class="macro-box">
+                <div class="macro-label">미국 10년물</div>
+                <div id="macro-rate" class="macro-value">--</div>
+                <div id="macro-rate-note" class="macro-note">로딩 중...</div>
+            </div>
+            <div class="macro-box">
+                <div class="macro-label">VIX</div>
+                <div id="macro-vix" class="macro-value">--</div>
+                <div id="macro-vix-note" class="macro-note">로딩 중...</div>
+            </div>
+            <div class="macro-box">
+                <div class="macro-label">환율(USD/KRW)</div>
+                <div id="macro-krw" class="macro-value">--</div>
+                <div id="macro-krw-note" class="macro-note">로딩 중...</div>
+            </div>
+            <div class="macro-box">
+                <div class="macro-label">BTC</div>
+                <div id="macro-btc" class="macro-value">--</div>
+                <div id="macro-btc-note" class="macro-note">로딩 중...</div>
+            </div>
+        </div>
+        
+        <!-- 검색창 -->
+        <div class="search-row">
+            <input id="ticker-input" type="text" placeholder="티커 입력 (예: AMD, TSLA)" autocomplete="off" />
+            <button id="search-btn" class="z-button">ANALYZE</button>
+        </div>
+    </header>
+
+    <!-- 로딩 인디케이터 -->
+    <div id="loading-indicator" class="loading-container hidden">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">데이터 수신 및 분석 중...</p>
+    </div>
+
+    <!-- 결과 카드 -->
+    <section id="result-card" class="card hidden">
+        <!-- 상단 정보: 티커 & 점수 -->
+        <div class="ticker-header-row">
+            <div class="ticker-main">
+                <div class="ticker-symbol-wrapper">
+                    <div id="ticker-symbol" class="ticker-symbol">AMD</div>
+                    <div id="ticker-price" class="ticker-price">$0.00 / ₩0</div>
+                </div>
+                <div class="ticker-status-row">
+                    <span id="status-badge" class="status-badge">대기</span>
+                    <span id="main-comment" class="main-comment">분석 결과가 여기에 표시됩니다.</span>
+                </div>
+            </div>
+
+            <!-- ▶ Z SCORE / Z RANK + 팩터 뱃지 묶음 -->
+            <div class="z-metrics-column">
+                <div class="z-metrics">
+                    <div class="z-badge">
+                        <div class="z-badge-label">Z SCORE</div>
+                        <div id="ai-score" class="z-badge-value">0</div>
+                    </div>
+                    <div class="z-badge">
+                        <div class="z-badge-label">Z RANK</div>
+                        <div id="ai-rank" class="z-badge-value">-</div>
+                    </div>
+                </div>
+
+                <!-- 팩터 분리 뱃지 (Trend / Momentum / Vol / R:R) -->
+                <div class="factor-row">
+                    <span id="factor-trend" class="factor-pill">Trend: -</span>
+                    <span id="factor-momentum" class="factor-pill">Momentum: -</span>
+                    <span id="factor-vol" class="factor-pill">Vol: -</span>
+                    <span id="factor-rr" class="factor-pill">R:R: -</span>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 차트 영역 -->
+        <div id="chart-container" class="chart-container"></div>
+
+        <!-- 상세 분석 그리드 -->
+        <div class="section-grid">
+            <div class="section-box">
+                <h3>📈 Trend (추세)</h3>
+                <p id="trend-txt">분석 중...</p>
+            </div>
+            <div class="section-box">
+                <h3>🌊 Wave (파동)</h3>
+                <p id="wave-txt">분석 중...</p>
+            </div>
+            <div class="section-box">
+                <h3>⚡ Momentum (모멘텀)</h3>
+                <p id="momentum-txt">분석 중...</p>
+            </div>
+            <div class="section-box">
+                <h3>💰 Supply (수급)</h3>
+                <p id="supply-txt">분석 중...</p>
+            </div>
+            <div class="section-box">
+                <h3>📊 Pattern (패턴)</h3>
+                <p id="pattern-txt">분석 중...</p>
+            </div>
+            <div class="section-box">
+                <h3>📰 News & Sentiment</h3>
+                <p id="news-txt">분석 중...</p>
+            </div>
+            <div class="section-box wide">
+                <h3>🏦 Fundamentals (실적 / 밸류에이션)</h3>
+                <p id="fund-txt">분석 중...</p>
+            </div>
+        </div>
+
+        <!-- 📡 Market Regime -->
+         <section class="section regime-section">
+          <div class="regime-header">
+           <h3 class="section-title">
+            📡 Market Regime
+           </h3>
+
+         <div class="regime-tag-row">
+         <span id="regime-risk" class="regime-pill regime-pill-neutral">
+         Risk Neutral
+         </span>
+         <span id="regime-fx" class="regime-pill">
+         환율 중립
+         </span>
+         <span id="regime-crypto" class="regime-pill">
+         Crypto 중립
+         </span>
+         </div>
+         </div>
+         </section>
+
+
+        <!-- 지표 분석 박스 (RSI / MA / MACD) -->
+        <div class="indicator-row">
+            <div class="indicator-box">
+                <h4>RSI (14)</h4>
+                <p id="rsi-txt">—</p>
+            </div>
+            <div class="indicator-box">
+                <h4>MA 20 / 60</h4>
+                <p id="ma-txt">—</p>
+            </div>
+            <div class="indicator-box">
+                <h4>MACD (12, 26)</h4>
+                <p id="macd-txt">—</p>
+            </div>
+        </div>
+
+        <!-- 가격 타겟 -->
+        <div class="target-row">
+            <div class="target-box target-1">
+                <h4>🎯 1차 목표가</h4>
+                <p id="target1">$0.00</p>
+            </div>
+            <div class="target-box target-2">
+                <h4>🎯 2차 목표가</h4>
+                <p id="target2">$0.00</p>
+            </div>
+            <div class="target-box stop-loss">
+                <h4>🛑 손절가 (Stop)</h4>
+                <p id="stoploss">$0.00</p>
+            </div>
+        </div>
+        <!-- 📏 포지션 사이즈 계산기 -->
+        <div id="position-box" class="position-box">
+            <h3>📏 포지션 사이즈 계산기</h3>
+
+            <div class="pos-row">
+                <div class="pos-field">
+                    <label for="pos-capital">총 자본 (USD 기준)</label>
+                    <input id="pos-capital" type="number" placeholder="예: 10000" />
+                </div>
+
+                <div class="pos-field">
+                    <label for="pos-risk">트레이드당 리스크 (%)</label>
+                    <input id="pos-risk" type="number" placeholder="예: 1" />
+                </div>
+
+                <div class="pos-field">
+                    <label for="pos-entry">진입가 (기본 = 현재가)</label>
+                    <input id="pos-entry" type="number" placeholder="자동 입력" />
+                </div>
+            </div>
+
+            <div class="pos-result-row">
+                <button id="pos-calc-btn" class="z-button pos-btn">CALC</button>
+                <div class="pos-result">
+                    <span id="pos-size">수량: -</span>
+                    <span id="pos-risk-amount">손실 한도: -</span>
+                </div>
+            </div>
+
+            <p id="pos-hint" class="pos-hint">
+                계좌 자본과 허용 리스크(%)를 입력하면, 현재 손절가 기준 적정 수량을 계산합니다.
+            </p>
+        </div>
+        
+                <!-- 전략 요약 박스 -->
+        <div class="strategy-box">
+            <h3>🧠 ZAVIS 전략 요약</h3>
+            <p id="strategy-main">
+                현재 자리의 전략적 의미가 여기에 표시됩니다.
+            </p>
+            <p id="strategy-detail" class="strategy-detail">
+                지지·저항, R:R, 모멘텀을 종합해 진입/관망 여부를 요약합니다.
+            </p>
+        </div>
+
+        <p class="footer-note">
+            ⚡ Powered by ZAVIS Engine v6.1 • 데이터 출처: Yahoo Finance (via Proxy)
+        </p>
+        <p class="copyright">COPYRIGHT JO YONG GWEON</p>
+    </section>
+
+    <!-- 에러/알림 배너 -->
+    <div id="toast-msg" class="toast hidden">메시지</div>
+
+    <script src="app.js"></script>
+    <!-- PWA Service Worker 등록 -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("./service-worker.js")
+            .catch(err => console.error("[ZAVIS] SW register error:", err));
+        });
+      }
+    </script>
+  </body>
+</html>
+</body>
+</html>

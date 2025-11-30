@@ -1,0 +1,633 @@
+/* ZAVIS LAB v6.1 Design System */
+
+:root {
+    --bg-dark: #050709;        /* 전체 배경을 더 모던한 다크톤으로 */
+    --bg-card: #151b2e;
+    --bg-input: #1e2640;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.5);
+    --text-main: #ffffff;
+    --text-sub: #94a3b8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --macro-note: #facc15;
+}
+
+body {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+/* Header */
+.top-header {
+    text-align: center;
+    padding: 3rem 1rem 2rem;
+    /* 상단 광원/음영 제거, 깔끔한 그라디언트 */
+    background: linear-gradient(to bottom, #111827 0%, #050709 70%);
+}
+
+.app-title {
+    margin: 0;
+    font-size: 3.5rem;
+    font-weight: 900;
+    background: linear-gradient(to right, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+}
+
+.app-sub {
+    color: var(--text-sub);
+    margin-top: 0.5rem;
+    font-size: 1rem;
+}
+
+/* 매크로 바 */
+.macro-row {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.macro-box {
+    min-width: 150px;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    text-align: left;
+}
+
+.macro-label {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    margin-bottom: 0.25rem;
+}
+
+.macro-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.macro-note {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--macro-note); /* 노란색 코멘트 */
+}
+
+/* Search */
+.search-row {
+    margin-top: 1.75rem;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+#ticker-input {
+    padding: 1rem 1.5rem;
+    width: 300px;
+    border-radius: 12px;
+    border: 2px solid var(--bg-input);
+    background: var(--bg-input);
+    color: white;
+    font-size: 1.1rem;
+    outline: none;
+    transition: 0.3s;
+}
+
+#ticker-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.z-button {
+    padding: 0 2rem;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.z-button:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+/* Card */
+.card {
+    max-width: 1000px;
+    margin: 0 auto 3rem;
+    background: var(--bg-card);
+    border-radius: 24px;
+    padding: 2.5rem;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.hidden { display: none; }
+
+/* Ticker Header */
+.ticker-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+}
+
+.ticker-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ticker-symbol-wrapper {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.ticker-symbol {
+    font-size: 4rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.ticker-price {
+    font-size: 1.2rem;
+    color: var(--text-sub);
+    margin-top: 0;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: var(--bg-input);
+    margin-right: 0.5rem;
+}
+
+.main-comment {
+    color: var(--text-sub);
+    font-size: 0.95rem;
+}
+
+/* Metrics */
+.z-metrics {
+    display: flex;
+    gap: 1rem;
+}
+
+/* Z SCORE / Z RANK 오른쪽 컬럼 */
+.z-metrics-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.z-badge {
+    background: linear-gradient(145deg, #1e2640, #111827);
+    padding: 1.5rem;
+    border-radius: 16px;
+    min-width: 140px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.z-risk-label {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-sub);
+}
+
+.z-badge-label {
+    color: var(--text-sub);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+}
+
+.z-badge-value {
+    font-size: 3.1rem;
+    font-weight: 800;
+    font-style: italic;
+    color: var(--accent);
+}
+
+/* Chart */
+.chart-container {
+    height: 400px;
+    background: #000;
+    border-radius: 16px;
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+/* Grid */
+.section-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.section-box {
+    background: rgba(255,255,255,0.03);
+    padding: 1.5rem;
+    border-radius: 16px;
+}
+
+.section-box h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--accent);
+}
+
+.section-box p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.section-box.wide {
+    grid-column: span 2;
+}
+
+/* 지표 박스 */
+.indicator-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.indicator-box {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    padding: 1.5rem;
+    border-radius: 16px;
+}
+
+.indicator-box h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--accent);
+}
+
+.indicator-box p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+/* Targets */
+.target-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.target-box {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    padding: 1.5rem;
+    border-radius: 16px;
+    text-align: center;
+}
+
+.target-box h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-sub);
+    font-size: 0.9rem;
+}
+
+.target-box p {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.target-1 p, .target-2 p { color: var(--success); }
+.stop-loss p { color: var(--danger); }
+
+/* Loading & Toast */
+.loading-container { text-align: center; padding: 2rem; }
+
+.loading-spinner {
+    width: 40px; height: 40px;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s infinite linear;
+    margin: 0 auto 1rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 100;
+    animation: slideUp 0.3s;
+}
+@keyframes slideUp {
+    from { transform: translate(-50%, 20px); opacity: 0; }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Footer */
+.footer-note {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-sub);
+}
+
+.copyright {
+    margin-top: 0.4rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-sub);
+}
+
+/* Mobile 기본 레이아웃 */
+@media (max-width: 768px) {
+    .ticker-header-row { flex-direction: column; gap: 1rem; }
+    .z-metrics { width: 100%; justify-content: space-between; }
+    .z-badge { flex: 1; }
+    .section-grid { grid-template-columns: 1fr; }
+    .section-box.wide { grid-column: span 1; }
+    .indicator-row { flex-direction: column; }
+    .target-row { flex-direction: column; }
+    .search-row { flex-direction: column; }
+    #ticker-input { width: 100%; }
+    .macro-row { flex-direction: column; }
+}
+
+/* 전략 요약 박스 */
+.strategy-box {
+    margin-top: 2rem;
+    padding: 1.5rem 1.75rem;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.9); /* #0f172a 비슷한 딥네이비 */
+    border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.strategy-box h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+}
+
+.strategy-box p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-sub);
+}
+
+.strategy-detail {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    opacity: 0.95;
+}
+
+/* 포지션 사이즈 계산기 */
+.position-box {
+    margin-top: 1.75rem;
+    padding: 1.5rem 1.75rem;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.9); /* 카드와 톤 맞춤 */
+    border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.position-box h3 {
+    margin: 0 0 0.9rem 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.pos-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+    flex-wrap: wrap;
+}
+
+.pos-field {
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.pos-field label {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+}
+
+.pos-field input {
+    padding: 0.55rem 0.7rem;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    background: rgba(15, 23, 42, 0.9);
+    color: var(--text-main);
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.pos-field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.pos-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.3rem;
+}
+
+.pos-btn {
+    padding-inline: 1.5rem;
+    white-space: nowrap;
+}
+
+.pos-result {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+}
+
+#pos-size {
+    font-weight: 700;
+    color: #22c55e; /* 수량 초록 */
+}
+
+#pos-risk-amount {
+    font-weight: 600;
+    color: #f97316; /* 리스크 금액 주황 */
+}
+
+.pos-hint {
+    margin-top: 0.55rem;
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    opacity: 0.9;
+}
+
+/* 모바일에서 줄바꿈 대응 (포지션 박스) */
+@media (max-width: 768px) {
+    .pos-row {
+        flex-direction: column;
+    }
+    .pos-result-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ───────── Market Regime ───────── */
+
+.regime-section {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.regime-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.regime-header .section-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.regime-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 기본 pill 스타일 */
+.regime-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  white-space: nowrap;
+}
+
+/* 상태별 색상 */
+.regime-pill-neutral {
+  border-color: #6b7280;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+}
+
+/* 금리·VIX → Risk On / Off */
+.regime-pill-riskon {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
+}
+
+.regime-pill-riskoff {
+  border-color: #f97316;
+  background: rgba(248, 113, 113, 0.14);
+  color: #fed7aa;
+}
+
+/* FX Regime */
+.regime-pill-fx-weak {
+  border-color: #60a5fa;
+  background: rgba(59, 130, 246, 0.16);
+  color: #bfdbfe;
+}
+
+.regime-pill-fx-strong {
+  border-color: #f97316;
+  background: rgba(248, 150, 88, 0.2);
+  color: #fed7aa;
+}
+
+/* Crypto Regime */
+.regime-pill-crypto-hot {
+  border-color: #eab308;
+  background: rgba(234, 179, 8, 0.18);
+  color: #facc15;
+}
+
+.regime-pill-crypto-cold {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+  color: #bae6fd;
+}
+
+/* ── Z-Factor Chips (Trend / Momentum / Vol / Structure) ── */
+
+.factor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+}
+
+.factor-pill {
+  padding: 0.25rem 0.7rem;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  white-space: nowrap;
+}
+
+/* 상태별 컬러 */
+.factor-bull {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.16);
+  color: #bbf7d0;
+}
+
+.factor-bear {
+  border-color: #f97316;
+  background: rgba(248, 113, 113, 0.18);
+  color: #fed7aa;
+}
+
+.factor-neutral {
+  opacity: 0.9;
+}

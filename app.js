@@ -72,7 +72,7 @@ async function fetchYahooChart(symbol, range = "1d", interval = "1d") {
   return { meta, closes, volumes, lastClose };
 }
 
-// 3-1. 개별 종목 데이터 (OHLC)
+// 3-1. 개별 종목 데이터 (OHLC + Volume)
 async function fetchStockData(ticker) {
   const symbol = ticker.toUpperCase().trim();
   const targetUrl = `${YAHOO_API_BASE}${symbol}?range=6mo&interval=1d`;
@@ -92,6 +92,7 @@ async function fetchStockData(ticker) {
     const quote = result.indicators?.quote?.[0];
     if (!quote) throw new Error("No quote data");
 
+    const opens = quote.open || [];
     const closes = quote.close || [];
     const highs = quote.high || [];
     const lows = quote.low || [];
@@ -100,19 +101,23 @@ async function fetchStockData(ticker) {
     const len = closes.length;
     if (len < 30) throw new Error("Not enough data");
 
-    // null 값 제거
+    // null 값 제거 (OHLC+V 모두 유효한 것만 사용)
+    const cleanOpens = [];
     const cleanCloses = [];
     const cleanHighs = [];
     const cleanLows = [];
     const cleanVolumes = [];
 
     for (let i = 0; i < len; i++) {
+      const o = opens[i];
       const c = closes[i];
       const h = highs[i];
       const l = lows[i];
       const v = volumes[i];
 
-      if (c == null || h == null || l == null || v == null) continue;
+      if (o == null || c == null || h == null || l == null || v == null) continue;
+
+      cleanOpens.push(o);
       cleanCloses.push(c);
       cleanHighs.push(h);
       cleanLows.push(l);
@@ -129,6 +134,7 @@ async function fetchStockData(ticker) {
     return {
       symbol: meta.symbol || symbol,
       price: lastPrice,
+      opens: cleanOpens,
       closes: cleanCloses,
       highs: cleanHighs,
       lows: cleanLows,
@@ -284,6 +290,7 @@ async function fetchMacroData() {
 
 // 4. 데모 데이터 생성기 (비상용, OHLC 포함)
 function generateDemoData(symbol) {
+  const opens = [];
   const closes = [];
   const highs = [];
   const lows = [];
@@ -293,11 +300,13 @@ function generateDemoData(symbol) {
 
   for (let i = 0; i < 120; i++) {
     const change = (Math.random() - 0.45) * 0.05;
+    const open = price;
     price = price * (1 + change);
 
-    const high = price * (1 + Math.random() * 0.01);
-    const low = price * (1 - Math.random() * 0.01);
+    const high = Math.max(open, price) * (1 + Math.random() * 0.01);
+    const low = Math.min(open, price) * (1 - Math.random() * 0.01);
 
+    opens.push(open);
     closes.push(price);
     highs.push(high);
     lows.push(low);
@@ -307,12 +316,147 @@ function generateDemoData(symbol) {
   return {
     symbol: symbol,
     price: price,
-    closes: closes,
-    highs: highs,
-    lows: lows,
-    volumes: volumes,
+    opens,
+    closes,
+    highs,
+    lows,
+    volumes,
   };
 }
+
+// ===== 지표 헬퍼: EMA / RSI(Wilder) / MACD =====
+
+  // TradingView MAExp와 맞추기 위한 EMA
+  function calcEMA(values, period) {
+    const len = values.length;
+    if (!Array.isArray(values) || len < period) return null;
+
+    const k = 2 / (period + 1);
+
+    // 초기값: 첫 period개 단순평균(SMA)
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += values[i];
+    }
+    let ema = sum / period;
+
+    // 이후부터는 순수 EMA 재귀
+    for (let i = period; i < len; i++) {
+      ema = values[i] * k + ema * (1 - k);
+    }
+    return ema;
+  }
+
+  // TradingView 기본 RSI(14)와 유사한 Wilder 방식
+  function calcRSI_Wilder(closes, period = 14) {
+    const n = closes.length;
+    if (!Array.isArray(closes) || n <= period) return null;
+
+    let gains = 0;
+    let losses = 0;
+
+    // 1) 첫 period 구간: 단순 평균
+    for (let i = 1; i <= period; i++) {
+      const diff = closes[i] - closes[i - 1];
+      if (diff >= 0) gains += diff;
+      else losses -= diff;
+    }
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+
+    // 2) 이후 구간: Wilder smoothing
+    for (let i = period + 1; i < n; i++) {
+      const diff = closes[i] - closes[i - 1];
+      const gain = diff > 0 ? diff : 0;
+      const loss = diff < 0 ? -diff : 0;
+
+      avgGain = (avgGain * (period - 1) + gain) / period;
+      avgLoss = (avgLoss * (period - 1) + loss) / period;
+    }
+
+    if (avgLoss === 0) {
+      // 손실이 아예 없으면 RSI = 100으로 수렴
+      return 100;
+    }
+
+    const rs = avgGain / avgLoss;
+    const rsi = 100 - 100 / (1 + rs);
+    return rsi;
+  }
+
+  // TradingView MACD(12,26,9) 기준 MACD 라인만 사용
+  function calcMACD(closes) {
+    if (!Array.isArray(closes) || closes.length < 26) return null;
+    const ema12 = calcEMA(closes, 12);
+    const ema26 = calcEMA(closes, 26);
+    if (ema12 == null || ema26 == null) return null;
+    const macd = ema12 - ema26;
+    return macd;
+  }
+
+// ────────────────────────────────
+// 스윙 포인트 → 지지/저항 레벨 클러스터링 헬퍼
+// ────────────────────────────────
+function clusterSwingLevels(levels, totalBars) {
+  const TOL = 0.03; // ±3% 안쪽이면 같은 레벨로 묶기
+  const clusters = [];
+
+  levels.forEach((lv) => {
+    const { price, idx } = lv;
+    let found = null;
+
+    for (const c of clusters) {
+      const diff = Math.abs(price - c.price) / c.price;
+      if (diff <= TOL) {
+        found = c;
+        break;
+      }
+    }
+
+    if (!found) {
+      clusters.push({
+        price,
+        idxs: [idx],
+        lastIdx: idx,
+      });
+    } else {
+      found.idxs.push(idx);
+      found.lastIdx = Math.max(found.lastIdx, idx);
+      // 단순 평균으로 레벨 위치 보정
+      const k = found.idxs.length;
+      found.price = (found.price * (k - 1) + price) / k;
+    }
+  });
+
+  // 터치 횟수 + 최신성 가중치 점수 계산
+  clusters.forEach((c) => {
+    const touchCount = c.idxs.length;
+    const timeBoost = 1 + c.lastIdx / Math.max(1, totalBars); // 최신일수록 가점
+    c.score = touchCount * timeBoost;
+  });
+
+  return clusters;
+}
+
+function pickSupportResistance(clusters, lastPrice, isSupport) {
+  const filtered = clusters.filter((c) =>
+    isSupport ? c.price < lastPrice : c.price > lastPrice
+  );
+  if (!filtered.length) return [];
+
+  // 1차: 점수(터치 + 최신성)로 상위 몇 개 추리기
+  filtered.sort((a, b) => b.score - a.score);
+  const top = filtered.slice(0, 5);
+
+  // 2차: 현재가와의 거리 기준으로 정렬(더 “실전에서 쓰기 좋은” 레벨 우선)
+  top.sort(
+    (a, b) =>
+      Math.abs(lastPrice - a.price) - Math.abs(lastPrice - b.price)
+  );
+
+  return top; // [0]이 1차 레벨, [1]이 2차 레벨 후보
+}
+
 
 // 5. 지표 계산 엔진 (지지·저항 + R:R + 스코어)
 function analyzeData(data) {
@@ -324,59 +468,29 @@ function analyzeData(data) {
 
   const lastPrice = data.price || closes[n - 1];
 
-  // === 이동평균 헬퍼 ===
-  const ma = (period) => {
-    if (n < period) return null;
-    const slice = closes.slice(n - period);
-    const sum = slice.reduce((a, b) => a + b, 0);
-    return sum / period;
-  };
+  // === 이동평균: EMA 기준 (TradingView MAExp 맞춤) ===
+  const ma5 = calcEMA(closes, 5);
+  const ma20 = calcEMA(closes, 20);
+  const ma60 = calcEMA(closes, 60);
+  const ma120 = calcEMA(closes, 120);
 
-  const ma5 = ma(5);
-  const ma20 = ma(20);
-  const ma60 = ma(60);
-  const ma120 = ma(120);
-
-  // === RSI(14) ===
-  let rsi = 50;
-  if (n > 15) {
-    let gains = 0;
-    let losses = 0;
-    for (let i = n - 14; i < n; i++) {
-      const diff = closes[i] - closes[i - 1];
-      if (diff >= 0) gains += diff;
-      else losses -= diff;
-    }
-    const avgGain = gains / 14;
-    const avgLoss = losses / 14 || 1e-9;
-    const rs = avgGain / avgLoss;
-    rsi = 100 - 100 / (1 + rs);
+  // === RSI(14) - Wilder 방식 ===
+  let rsi = calcRSI_Wilder(closes, 14);
+  if (rsi == null) {
+    rsi = 50; // 데이터 부족 시 중립값
   }
 
-  // === MACD (12,26 단순 버전) ===
-  let macd = null;
-  if (n >= 26) {
-    const emaCalc = (period) => {
-      const alpha = 2 / (period + 1);
-      let ema = closes[n - period];
-      for (let i = n - period + 1; i < n; i++) {
-        ema = alpha * closes[i] + (1 - alpha) * ema;
-      }
-      return ema;
-    };
-    const ema12 = emaCalc(12);
-    const ema26 = emaCalc(26);
-    macd = ema12 - ema26;
-  }
+  // === MACD (12,26) ===
+  const macd = calcMACD(closes);
 
-  // === 지지·저항 스윙 포인트 ===
+    // === 지지·저항 스윙 포인트 (클러스터 + 최신 가중치) ===
   let support1 = null;
   let support2 = null;
   let resistance1 = null;
   let resistance2 = null;
 
   if (n >= 10) {
-    const start = Math.max(1, n - 80);
+    const start = Math.max(1, n - 80); // 최근 80봉 정도만 사용 (너무 오래전 레벨은 자동 제외)
     const swingLows = [];
     const swingHighs = [];
 
@@ -384,28 +498,34 @@ function analyzeData(data) {
       const h = highs[i];
       const l = lows[i];
 
+      // 스윙 하이 / 스윙 로우 탐지
       if (h > highs[i - 1] && h > highs[i + 1]) {
-        swingHighs.push(h);
+        swingHighs.push({ price: h, idx: i });
       }
       if (l < lows[i - 1] && l < lows[i + 1]) {
-        swingLows.push(l);
+        swingLows.push({ price: l, idx: i });
       }
     }
 
-    const below = swingLows
-      .filter((v) => v < lastPrice)
-      .sort((a, b) => b - a);
-    const above = swingHighs
-      .filter((v) => v > lastPrice)
-      .sort((a, b) => a - b);
+    // 스윙들을 ±3% 박스 단위로 클러스터링 + 터치/최신성 점수 부여
+    const lowClusters = clusterSwingLevels(swingLows, n);
+    const highClusters = clusterSwingLevels(swingHighs, n);
 
-    if (below.length > 0) support1 = below[0];
-    if (below.length > 1) support2 = below[1];
+    // 현재가 기준 아래/위 레벨 중 “실전에서 쓸만한” 순서대로 선택
+    const supportLevels = pickSupportResistance(lowClusters, lastPrice, true);
+    const resistanceLevels = pickSupportResistance(
+      highClusters,
+      lastPrice,
+      false
+    );
 
-    if (above.length > 0) resistance1 = above[0];
-    if (above.length > 1) resistance2 = above[1];
+    if (supportLevels.length > 0) support1 = supportLevels[0].price;
+    if (supportLevels.length > 1) support2 = supportLevels[1].price;
 
-    // 보정
+    if (resistanceLevels.length > 0) resistance1 = resistanceLevels[0].price;
+    if (resistanceLevels.length > 1) resistance2 = resistanceLevels[1].price;
+
+    // 혹시라도 못 잡았을 때 최소/최대값으로 마지막 보정
     if (support1 === null) {
       const recentLows = lows.slice(Math.max(0, n - 60));
       const minLow = Math.min(...recentLows);
@@ -437,8 +557,20 @@ function analyzeData(data) {
     rrRatio = rewardPct1 / riskPct;
   }
 
-  // === 타겟/손절 ===
-  let stop = support1 ? support1 * 0.99 : lastPrice * 0.95;
+  // === 타겟/손절 (과도하게 먼 손절은 가드레일) ===
+  const MAX_RISK_PCT = 25; // 손절이 -25% 이상 벌어지면 비실전 구간으로 간주
+
+  let stopBase = support1 ? support1 : lastPrice * 0.95;
+
+  // 손절이 너무 멀면 “실전 가드레일”로 한 번 더 보정
+  let tmpRiskPct = ((lastPrice - stopBase) / lastPrice) * 100;
+  if (tmpRiskPct > MAX_RISK_PCT) {
+    stopBase = lastPrice * (1 - MAX_RISK_PCT / 100);
+    tmpRiskPct = ((lastPrice - stopBase) / lastPrice) * 100;
+    riskPct = tmpRiskPct; // R:R 계산에도 보정값 사용
+  }
+
+  let stop = stopBase * 0.99;
   let target1, target2;
 
   if (resistance1) {
@@ -452,6 +584,7 @@ function analyzeData(data) {
     target1 = lastPrice * 1.05;
     target2 = lastPrice * 1.15;
   }
+
 
   // === (NEW) 일일 변동률 & 거래량 비율 ===
   let dailyChangePct = null;
@@ -485,7 +618,7 @@ function analyzeData(data) {
   }
   score += clamp(shortTrend * 1.5, -15, 15);
 
-  // (2) 중기 추세: 20 vs 60
+  // (2) 중기 추세: 20 vs 60 (EMA 기준)
   let midTrend = 0;
   if (ma20 && ma60) {
     midTrend = ((ma20 - ma60) / ma60) * 100;
@@ -571,6 +704,183 @@ function analyzeData(data) {
   };
 }
 
+
+// ===============================
+// 수급 패턴/Why-Today/전략 시나리오 헬퍼
+// ===============================
+
+// 1) 거래량·봉구조 기반 수급 신호
+function calcFlowSignal(data, analysis) {
+  const { closes, highs, lows, opens } = data;
+  const n = closes.length;
+  if (!opens || opens.length !== n) {
+    return {
+      flowLabel: "데이터 부족",
+      flowType: "NEUTRAL",
+      flowNote: "캔들 몸통/꼬리 계산용 시가 데이터가 부족합니다.",
+    };
+  }
+
+  const i = n - 1;
+  const o = opens[i];
+  const c = closes[i];
+  const h = highs[i];
+  const l = lows[i];
+
+  const body = Math.abs(c - o);
+  const range = Math.max(h, l, o, c) - Math.min(h, l, o, c) || 1e-9;
+  const bodyRatio = body / range;
+  const upperWick = h - Math.max(o, c);
+  const lowerWick = Math.min(o, c) - l;
+
+  const volRatio = analysis.volumeRatio; // analyzeData에서 계산한 값 사용
+
+  // 기본 분류값
+  let flowType = "NEUTRAL";
+  let flowLabel = "수급 중립";
+  let flowNote =
+    "거래량과 봉 구조 모두 평균적인 수준 — 뚜렷한 수급 쏠림보다는 추세/지지·저항이 더 중요.";
+
+  // 매수/매도 우위 분류 (실전용 러프 룰)
+  if (volRatio != null && volRatio >= 1.3 && bodyRatio >= 0.4 && c > o) {
+    flowType = "BUY_DOMINANT";
+    flowLabel = "매수세 우위";
+    flowNote =
+      `거래량이 최근 평균 대비 약 ${volRatio.toFixed(
+        1
+      )}배, 몸통이 긴 양봉입니다. ` +
+      "기관·큰손 매수 유입 가능성이 높은 봉으로, 추세 이어질 경우 눌림 매수/추세 추종 구간이 될 수 있습니다.";
+  } else if (volRatio != null && volRatio >= 1.3 && bodyRatio >= 0.4 && c < o) {
+    flowType = "SELL_DOMINANT";
+    flowLabel = "매도세 우위";
+    flowNote =
+      `거래량이 최근 평균 대비 약 ${volRatio.toFixed(
+        1
+      )}배, 몸통이 긴 음봉입니다. ` +
+      "청산·손절이 한꺼번에 나온 봉일 가능성이 높고, 후속 하락 파동이 이어질 수 있는 자리입니다.";
+  } else if (volRatio != null && volRatio >= 1.3 && bodyRatio < 0.3) {
+    flowType = "BATTLE";
+    flowLabel = "공방 치열";
+    flowNote =
+      `거래량은 평균 대비 높은데 몸통은 짧고 윗꼬리·아랫꼬리가 긴 봉입니다. ` +
+      "매수·매도 공방이 치열한 자리로, 방향이 정해지기 전까지는 진입보다 관망이 유리할 수 있습니다.";
+  } else if (volRatio != null && volRatio <= 0.6) {
+    flowType = "EMPTY";
+    flowLabel = "수급 공백";
+    flowNote =
+      "거래량이 평소 대비 현저히 적은 ‘수급 공백’ 구간입니다. 큰손이 자리를 잡기 전인 경우가 많아, 장기 투자자는 상관 없지만 단기 트레이더는 매매 효율이 떨어질 수 있습니다.";
+  }
+
+  return { flowType, flowLabel, flowNote, bodyRatio, volRatio };
+}
+
+// 2) 일일 변동·갭·수급 기반 Why-Today
+function calcWhyTodaySignal(data, analysis, flowInfo) {
+  const { closes } = data;
+  const n = closes.length;
+  if (n < 2) {
+    return {
+      whyLabel: "평이한 세션",
+      whyNote: "최근 데이터가 부족해 특이한 이벤트를 추정하기 어렵습니다.",
+    };
+  }
+
+  const chg = analysis.dailyChangePct; // 이미 analyzeData에서 계산
+  const gap =
+    ((closes[n - 1] - closes[n - 2]) / closes[n - 2]) * 100 || chg || 0;
+  const volRatio = analysis.volumeRatio;
+
+  let whyLabel = "평이한 세션";
+  let whyNote =
+    "가격 변동과 거래량이 모두 평범한 범위 안에 있어, 특정 이벤트보다는 일상적인 수급 조정으로 보는 것이 자연스럽습니다.";
+
+  if (chg != null && volRatio != null) {
+    // 갭/강한 양봉 + 거래량 급증
+    if (chg >= 3 && volRatio >= 1.5) {
+      whyLabel = "강한 재료 가능성";
+      whyNote =
+        `당일 수익률이 약 ${chg.toFixed(
+          1
+        )}%이고 거래량이 평균의 ${volRatio.toFixed(
+          1
+        )}배 수준입니다. ` +
+        "실적 서프라이즈, 가이던스 상향, 대형 수주/정책 호재, 또는 M&A 관련 뉴스 등 강한 재료가 개입됐을 확률이 높은 흐름입니다.";
+    } else if (chg <= -3 && volRatio >= 1.5) {
+      whyLabel = "악재/청산 가능성";
+      whyNote =
+        `당일 -${Math.abs(chg).toFixed(
+          1
+        )}% 급락과 함께 거래량이 평균의 ${volRatio.toFixed(
+          1
+        )}배 수준으로 급증했습니다. ` +
+        "실적 쇼크, 가이던스 하향, 규제/소송 이슈, 또는 기관·펀드 청산성 매도가 나왔을 가능성이 높은 구간입니다.";
+    } else if (Math.abs(chg) < 1 && volRatio <= 0.7) {
+      whyLabel = "대기장/관망 구간";
+      whyNote =
+        "가격과 거래량 모두 잠잠한 구간입니다. 시장이 다음 이벤트(실적 발표, FOMC, 리포트 등)를 기다리는 ‘대기장’일 가능성이 높습니다.";
+    }
+  }
+
+  return { whyLabel, whyNote, gapPct: gap };
+}
+
+// 3) 3안 전략 시나리오(Trend / Breakout / Reverse)
+function buildScenarios(data, analysis, flowInfo) {
+  const { price, support1, resistance1, rsi, rrRatio, riskPct, rewardPct1 } =
+    analysis;
+
+  const scenarios = [];
+
+  // 1안: 추세/지지 기반 눌림 매수
+  scenarios.push({
+    name: "1안) 추세/지지 기반 매수",
+    condition:
+      support1 &&
+      price &&
+      ((price - support1) / price) * 100 <= 5 &&
+      rsi >= 30 &&
+      rsi <= 65 &&
+      rrRatio &&
+      rrRatio >= 1.5,
+    entryHint: "주요 지지선 근처 분할 매수, 지지선 이탈 시 즉시 컷.",
+    comment:
+      "추세가 꺾이지 않은 상태에서 눌림이 나온 구간으로, 손절 폭 대비 위쪽 기대 수익이 유리한 구조일 때 활용하는 전략입니다.",
+  });
+
+  // 2안: 저항 돌파 추세 추종
+  scenarios.push({
+    name: "2안) 저항 돌파 추세 추종",
+    condition:
+      resistance1 &&
+      price &&
+      ((resistance1 - price) / resistance1) * 100 <= 3 &&
+      rsi >= 55 &&
+      flowInfo.flowType === "BUY_DOMINANT",
+    entryHint: "저항 돌파 후 눌림 재진입 / 저항 상회 확정 시 소량 추종.",
+    comment:
+      "기관·큰손 매수가 동반된 돌파 구간일 때, 눌림을 기다리거나 소량 추세 추종으로 접근하는 전략입니다.",
+  });
+
+  // 3안: 역추세 과매도 반등
+  scenarios.push({
+    name: "3안) 역추세 저점 매수(고위험)",
+    condition: rsi < 30 && support1 && price && rrRatio && rrRatio >= 1.2,
+    entryHint:
+      "과매도 구간에서 분할, 소액 진입 위주. 지지선 이탈 시 재진입 포기.",
+    comment:
+      "명확한 하락 추세 안에서 기술적 반등만 노리는 고위험 전략으로, 손절 기준과 포지션 크기 관리가 핵심입니다.",
+  });
+
+  return {
+    scenarios,
+    meta: {
+      rrRatio,
+      riskPct,
+      rewardPct1,
+    },
+  };
+}
+
 // 6. UI 업데이트
 function updateUI(data, analysis, fxRate) {
   const priceEl = $("ticker-price");
@@ -643,7 +953,7 @@ function updateUI(data, analysis, fxRate) {
     let statusColor = "#fbbf24";
 
     if (rrRaw >= 2) {
-      statusLabel = "[매수 우위]";
+      statusLabel = "[매수]";
       statusColor = "#10b981";
     } else if (rrRaw < 1) {
       statusLabel = "[주의]";
@@ -701,97 +1011,56 @@ function updateUI(data, analysis, fxRate) {
     }
   }
 
-  // === (NEW) 투자대회식 해석 – Supply / Pattern / News ===
+  // === (NEW) 실전형 엔진 – 수급 / Why-Today / 패턴&시나리오 ===
   const chg = analysis.dailyChangePct;
   const vr = analysis.volumeRatio;
+  const flowInfo = analysis.flowInfo;
+  const whyInfo = analysis.whyInfo;
+  const scenarioInfo = analysis.scenarioInfo;
 
-  // Supply: 거래량 비율 기반
+  // 1) Supply (수급) – 거래량+봉구조 기반 실전 해석
   if (supplyEl) {
-    let txt = "거래량 데이터 기준, 수급은 중립 수준으로 판단됩니다.";
-
-    if (vr != null) {
-      if (vr >= 2) {
-        txt =
-          `오늘 거래량이 최근 20일 평균의 약 ${vr.toFixed(
-            1
-          )}배 수준으로 급증한 상태입니다. ` +
-          "단기 수급이 한쪽으로 쏠린 구간으로, 방향이 맞으면 시세가 크게 나지만 역방향 진입 시 손절 기준을 더 엄격히 잡는 것이 좋습니다.";
-      } else if (vr >= 1.3) {
-        txt =
-          `거래량이 최근 평균 대비 약 ${vr.toFixed(
-            1
-          )}배로 늘어난 상태 — 수급이 슬슬 붙기 시작하는 구간입니다. ` +
-          "기관/큰손 참여 여부는 HTS 체결창과 프로그램 매매를 함께 확인하는 것이 좋습니다.";
-      } else if (vr <= 0.6) {
-        txt =
-          "거래량이 평소 대비 크게 줄어든 상태입니다. 방향성이 맞더라도 체결이 잘 안 될 수 있고," +
-          " 단기 트레이딩 관점에서는 매매 매력이 떨어지는 구간에 가깝습니다.";
-      } else {
-        txt =
-          "거래량은 최근 평균 수준과 비슷한 ‘일상적인 수급’ 구간입니다. " +
-          "추세·지지/저항 신호가 더 중요하게 작동하는 자리로 볼 수 있습니다.";
-      }
+    if (!flowInfo) {
+      supplyEl.textContent =
+        "수급 분석 데이터가 부족합니다. 봉 구조/거래량 정보를 다시 확인해주세요.";
+    } else {
+      supplyEl.textContent = `${flowInfo.flowLabel} · ${flowInfo.flowNote}`;
     }
-
-    supplyEl.textContent = txt;
   }
 
-  // Pattern: 일일 변동률 + 지지/저항 위치로 시나리오 설명
+  // 2) Pattern – 지지/저항 + 시나리오 기반
   if (patternEl) {
     let txt =
-      "특정 패턴(삼각수렴, 박스, 헤드앤숄더 등)을 자동 인식하진 않지만, 가격 위치 관점에서 체크가 필요합니다.";
+      "특정 패턴(삼각수렴, 박스, 헤드앤숄더 등)을 자동 인식하진 않지만, 가격 위치와 지지·저항 기준으로 시나리오를 정리합니다.";
 
-    const nearSupport =
-      analysis.support1 && analysis.price
-        ? ((analysis.price - analysis.support1) / analysis.price) * 100
-        : null;
-    const nearResistance =
-      analysis.resistance1 && analysis.price
-        ? ((analysis.resistance1 - analysis.price) / analysis.price) * 100
-        : null;
+    if (scenarioInfo && Array.isArray(scenarioInfo.scenarios)) {
+      const active = scenarioInfo.scenarios.filter((s) => s.condition);
 
-    if (nearSupport != null && nearSupport >= 0 && nearSupport <= 3) {
-      txt =
-        "주요 지지선 바로 위 구간에서 거래되고 있어 ‘눌림목’ 패턴 가능성이 있는 자리입니다. " +
-        "지지선 이탈 시 손절, 유지 시 재차 반등 패턴을 노려볼 수 있는 구간입니다.";
-    } else if (
-      nearResistance != null &&
-      nearResistance >= 0 &&
-      nearResistance <= 3
-    ) {
-      txt =
-        "상단 저항선 근처에서 공방 중인 구간입니다. " +
-        "돌파 시 추세가 한 단계 위로 레벨업될 수 있지만, 돌파 실패 시 단기 조정 파동이 나올 수 있는 자리라 분할 매도/재진입 전략이 유효한 구간입니다.";
-    } else if (chg != null && Math.abs(chg) >= 5) {
-      txt =
-        `일일 변동률이 약 ${chg.toFixed(
-          1
-        )}%로 크게 출렁인 세션입니다. ` +
-        "뉴스·실적·가이던스 등 이벤트성 재료가 개입됐을 가능성이 높은 구간이므로, 단순 기술적 패턴보다 재료 확인이 우선입니다.";
+      if (active.length > 0) {
+        // 조건을 만족하는 시나리오가 하나라도 있으면 가장 먼저 걸리는 것 기준으로 출력
+        const s0 = active[0];
+        txt = `${s0.name} — ${s0.comment}`;
+      } else {
+        // 조건 만족 시나리오가 없으면 기본 코멘트
+        txt =
+          "현재 가격/RSI/지지·저항 기준으로 뚜렷하게 유리한 매매 시나리오는 보이지 않습니다. " +
+          "기존 포지션 관리 또는 관망 위주의 구간으로 보는 편이 자연스럽습니다.";
+      }
     }
 
     patternEl.textContent = txt;
   }
 
-  // News & Sentiment: 변동률 기준으로 체크 포인트 제시
+  // 3) News & Sentiment – Why-Today 엔진
   if (newsEl) {
-    let txt =
-      "현재 엔진에는 실시간 뉴스/심리 데이터가 직접 연동되어 있지 않습니다. " +
-      "다만 가격 움직임 기준으로 체크가 필요한 포인트는 다음과 같습니다. ";
-
-    if (chg != null && chg >= 3) {
-      txt +=
-        "당일 강한 양봉/갭상승이 나온 상태라, 실적 서프라이즈·가이던스 상향·정책/규제 완화·인수합병(M&A) 관련 뉴스를 우선적으로 확인하는 것이 좋습니다.";
-    } else if (chg != null && chg <= -3) {
-      txt +=
-        "당일 급락/갭하락이 발생한 상태라, 실적 쇼크·가이던스 하향·규제 이슈·악성 리포트(투자의견 하향) 여부를 먼저 체크해야 합니다.";
+    if (!whyInfo) {
+      newsEl.textContent =
+        "현재 엔진에는 실시간 뉴스/심리가 연동되어 있지 않습니다. 가격과 거래량 기준으로만 해석합니다.";
     } else {
-      txt +=
-        "변동성이 크지 않은 구간으로, 섹터 전체 뉴스나 향후 실적/밸류에이션 스토리가 어떻게 전개되는지 점검하는 정도면 충분한 구간입니다.";
+      newsEl.textContent = `${whyInfo.whyLabel} · ${whyInfo.whyNote}`;
     }
-
-    newsEl.textContent = txt;
   }
+
 
   // Fundamentals 더미 텍스트는 기존 유지
   if (fundEl) {
@@ -848,7 +1117,7 @@ function updateUI(data, analysis, fxRate) {
       container_id: "chart-container",
       autosize: true,
       theme: "dark",
-      style: "1", // 캔들
+      style: "1",
       locale: "kr",
       timezone: "Etc/UTC",
       hide_top_toolbar: false,
@@ -856,17 +1125,18 @@ function updateUI(data, analysis, fxRate) {
       withdateranges: true,
       enable_publishing: false,
       allow_symbol_change: false,
+
       studies: [
         "RSI@tv-basicstudies",
         "MACD@tv-basicstudies",
         "BB@tv-basicstudies",
-        "MAExp@tv-basicstudies",
-        "MAExp@tv-basicstudies",
-        "MAExp@tv-basicstudies",
-        "MAExp@tv-basicstudies",
-        "MAExp@tv-basicstudies",
+        { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
+        { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
+        { id: "MAExp@tv-basicstudies", inputs: { length: 120 } },
+
       ],
     });
+
   } else {
     console.warn("[ZAVIS] TradingView not loaded");
   }
@@ -1034,6 +1304,14 @@ async function runAnalysis() {
       const data = await fetchStockData(ticker);
       const fx = await fetchFxRate();
       const analysis = analyzeData(data);
+
+      const flowInfo = calcFlowSignal(data, analysis);
+      const whyInfo = calcWhyTodaySignal(data, analysis, flowInfo);
+      const scenarioInfo = buildScenarios(data, analysis, flowInfo);
+
+      analysis.flowInfo = flowInfo;
+      analysis.whyInfo = whyInfo;
+      analysis.scenarioInfo = scenarioInfo;
 
       // 포지션 계산기에서 쓸 마지막 분석 결과 저장
       lastAnalysis = analysis;

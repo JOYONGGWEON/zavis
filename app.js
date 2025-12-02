@@ -1265,12 +1265,12 @@ function updateUI(data, analysis, fxRate) {
       allow_symbol_change: false,
 
       studies: [
-        { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
-        { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
-        { id: "MAExp@tv-basicstudies", inputs: { length: 120 } },
         "RSI@tv-basicstudies",
         "MACD@tv-basicstudies",
         "BB@tv-basicstudies",
+        { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
+        { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
+        { id: "MAExp@tv-basicstudies", inputs: { length: 120 } },
       ],
     });
   } else {
@@ -1557,3 +1557,4 @@ function calcPositionSize() {
       2
     )}% 리스크를 사용하는 포지션 크기입니다.`;
 }
+

@@ -1195,117 +1195,7 @@ function updateUI(data, analysis, fxRate) {
     if (!whyInfo) {
       newsEl.textContent =
         "현재 엔진에는 실시간 뉴스/심리가 연동되어 있지 않습니다. 가격과 거래량 기준으로만 해석합니다.";
-    } else {
-      newsEl.textContent = `${whyInfo.whyLabel} · ${whyInfo.whyNote}`;
-    }
-  }
 
-  // Fundamentals 더미 텍스트는 기존 유지
-  if (fundEl) {
-    fundEl.textContent =
-      "실적·밸류에이션(PSR, PER, FCF 등)은 비연동 상태 — 컨센서스/리포트 추가 확인 권장.";
-  }
-
-  // === 지표 박스 ===
-  if (rsiBox) {
-    let mood = "중립";
-    if (analysis.rsi >= 70) mood = "과열";
-    else if (analysis.rsi >= 60) mood = "강세";
-    else if (analysis.rsi <= 30) mood = "과매도";
-    else if (analysis.rsi <= 40) mood = "약세";
-    rsiBox.textContent = `${analysis.rsi.toFixed(1)} (${mood})`;
-  }
-
-  if (maBox) {
-    if (analysis.ma20 && analysis.ma60) {
-      let maMood = "중립/조정";
-      if (analysis.ma20 > analysis.ma60) maMood = "상승(골든크로스 우위)";
-      else if (analysis.ma20 < analysis.ma60) maMood = "하락(데드크로스 우위)";
-      maBox.textContent = `${analysis.ma20.toFixed(
-        2
-      )} / ${analysis.ma60.toFixed(2)} (${maMood})`;
-    } else {
-      maBox.textContent = "데이터 부족";
-    }
-  }
-
-  if (macdBox) {
-    if (analysis.macd == null) {
-      macdBox.textContent = "데이터 부족";
-    } else {
-      const mood = analysis.macd > 0 ? "상승 에너지" : "하락 에너지";
-      macdBox.textContent = `${analysis.macd.toFixed(2)} (${mood})`;
-    }
-  }
-
-  // 타겟/손절
-  $("target1").textContent = formatUSD(analysis.target1);
-  $("target2").textContent = formatUSD(analysis.target2);
-  $("stoploss").textContent = formatUSD(analysis.stop);
-
-  // ------------------------------------
-  // 차트 (TradingView Advanced Chart)
-  // ------------------------------------
-  $("chart-container").innerHTML = "";
-
-  if (window.TradingView) {
-    new TradingView.widget({
-      symbol: data.symbol,
-      interval: "D",
-      container_id: "chart-container",
-      autosize: true,
-      theme: "dark",
-      style: "1",
-      locale: "kr",
-      timezone: "Etc/UTC",
-      hide_top_toolbar: false,
-      hide_legend: false,
-      withdateranges: true,
-      enable_publishing: false,
-      allow_symbol_change: false,
-
-      studies: [
-        "RSI@tv-basicstudies",
-        "MACD@tv-basicstudies",
-        "BB@tv-basicstudies",
-        { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
-        { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
-        { id: "MAExp@tv-basicstudies", inputs: { length: 120 } },
-      ],
-    });
-  } else {
-    console.warn("[ZAVIS] TradingView not loaded");
-  }
-
-  // --- 전략 요약 박스 업데이트 ---
-  const strategyMainEl = $("strategy-main");
-  const strategyDetailEl = $("strategy-detail");
-
-  if (strategyMainEl && strategyDetailEl) {
-    const {
-      price,
-      rsi,
-      support1,
-      resistance1,
-      riskPct,
-      rewardPct1,
-      rrRatio,
-    } = analysis;
-
-    const nearSupport =
-      support1 && price ? ((price - support1) / price) * 100 : null;
-    const nearResistance =
-      resistance1 && price ? ((resistance1 - price) / price) * 100 : null;
-
-    let scenario = "중립 구간";
-    let detail =
-      "추세·모멘텀·지지/저항이 모두 애매한 구간으로, 확신이 없다면 관망을 권장합니다.";
-
-    // ① 지지선 근처 + R:R 양호 → 눌림 매수
-    if (
-      nearSupport !== null &&
-      nearSupport >= 0 &&
-      nearSupport <= 3 &&
 // 6. UI 업데이트
 function updateUI(data, analysis, fxRate) {
   const priceEl = $("ticker-price");
@@ -1919,5 +1809,6 @@ function calcPositionSize() {
       2
     )}% 리스크를 사용하는 포지션 크기입니다.`;
 }
+
 
 

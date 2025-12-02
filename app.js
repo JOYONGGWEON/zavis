@@ -1306,6 +1306,362 @@ function updateUI(data, analysis, fxRate) {
       nearSupport !== null &&
       nearSupport >= 0 &&
       nearSupport <= 3 &&
+// 6. UI 업데이트
+function updateUI(data, analysis, fxRate) {
+  const priceEl = $("ticker-price");
+  const scoreEl = $("ai-score");
+  const rankEl = $("ai-rank");
+
+  const trendEl = $("trend-txt");
+  const momentumEl = $("momentum-txt");
+  const waveEl = $("wave-txt");
+  const supplyEl = $("supply-txt");
+  const patternEl = $("pattern-txt");
+  const newsEl = $("news-txt");
+  const fundEl = $("fund-txt");
+
+  const rsiBox = $("rsi-txt");
+  const maBox = $("ma-txt");
+  const macdBox = $("macd-txt");
+
+  $("ticker-symbol").textContent = data.symbol;
+
+  // 가격: USD + KRW
+  let priceText = formatUSD(analysis.price);
+  if (typeof fxRate === "number") {
+    const krw = analysis.price * fxRate;
+    priceText += " / ₩" + Math.round(krw).toLocaleString("ko-KR");
+  }
+  priceEl.textContent = priceText;
+
+  // 점수 / 랭크
+  scoreEl.textContent = analysis.score;
+  rankEl.textContent = analysis.rank;
+
+  const color =
+    analysis.score >= 70
+      ? "#10b981"
+      : analysis.score >= 40
+      ? "#3b82f6"
+      : "#ef4444";
+  scoreEl.style.color = color;
+  rankEl.style.color = color;
+  scoreEl.style.textShadow = `0 0 10px ${color}88`;
+  rankEl.style.textShadow = `0 0 10px ${color}88`;
+
+  // 상태 뱃지
+  const badge = $("status-badge");
+  badge.textContent =
+    analysis.rank === "S" || analysis.rank === "A" ? "매수 우위" : "관망/주의";
+  badge.style.backgroundColor = color;
+  badge.style.color = "white";
+
+  // === 메인 코멘트: UP/DOWN + R:R ===
+  let mainComment = "분석 결과가 여기에 표시됩니다.";
+
+  const upPctRaw = analysis.rewardPct1;
+  const downPctRaw = analysis.riskPct;
+  const rrRaw = analysis.rrRatio;
+
+  const isValid =
+    Number.isFinite(upPctRaw) &&
+    Number.isFinite(downPctRaw) &&
+    downPctRaw > 0 &&
+    Number.isFinite(rrRaw);
+
+  if (isValid) {
+    const upPct = upPctRaw.toFixed(1);
+    const downPct = downPctRaw.toFixed(1);
+    const rrText = rrRaw.toFixed(2);
+
+    let statusLabel = "[중립]";
+    let statusColor = "#fbbf24";
+
+    if (rrRaw >= 2) {
+      statusLabel = "[매수]";
+      statusColor = "#10b981";
+    } else if (rrRaw < 1) {
+      statusLabel = "[주의]";
+      statusColor = "#ef4444";
+    }
+
+    mainComment =
+      `<span style="color:#10b981;">▲ UP: ${upPct}%</span> ` +
+      `<span style="color:#ef4444; margin-left:6px;">▼ DOWN: ${downPct}%</span> ` +
+      `<span style="color:#666; margin:0 6px;">·</span>` +
+      `<span style="color:#3b82f6; font-weight:700;">R:R ≈ ${rrText} : 1</span> ` +
+      `<span style="color:${statusColor}; font-weight:600; margin-left:6px;">${statusLabel}</span>`;
+  } else {
+    mainComment =
+      "최근 구간에서 뚜렷한 지지·저항이 부족해, 기본 추세·모멘텀 기준으로만 평가합니다.";
+  }
+
+  $("main-comment").innerHTML = mainComment;
+
+  // === 상세 섹터 텍스트들 ===
+  const { ma20, ma60, ma120, rsi, price, support1, support2, resistance1 } =
+    analysis;
+
+  // 1) Trend (추세) – 이평 정배열 + 위치 기반
+  if (trendEl) {
+    let txt = "단기/중기 이평선 기준으로 추세를 평가합니다.";
+
+    if (ma20 && ma60 && ma120) {
+      const isBull =
+        ma20 > ma60 && ma60 > ma120 && price >= ma20 * 0.97 && price <= ma20 * 1.1;
+      const isBullPullback =
+        ma20 > ma60 && ma60 > ma120 && price < ma20 && price > ma60 * 0.97;
+      const isBear =
+        ma20 < ma60 && price < ma20 && price < ma60 && price < ma120;
+
+      if (isBull) {
+        txt =
+          "20·60·120일선이 정배열이고, 현재가도 20일선 위에 위치한 전형적인 상승 추세 구간입니다. 추세 추종 매매가 유리한 자리입니다.";
+      } else if (isBullPullback) {
+        txt =
+          "중장기적으로는 정배열 상승 추세지만, 현재가는 20일선 아래/60일선 위의 눌림 구간입니다. 추세 안에서의 단기 조정으로 보는 쪽이 자연스럽습니다.";
+      } else if (isBear) {
+        txt =
+          "20·60·120일선이 역배열에 가깝고, 현재가도 주요 이평선 아래에 위치한 약세/하락 추세 구간입니다. 반등보다는 하락 추세 연장이 우세한 자리입니다.";
+      } else {
+        txt =
+          "이평선 배열과 현재가 위치가 애매한 중립/전환 구간입니다. 추세보다는 지지·저항과 수급 변화를 우선적으로 보는 편이 좋습니다.";
+      }
+    } else {
+      txt = "이평선 데이터가 부족해 뚜렷한 추세 판단이 어렵습니다.";
+    }
+
+    trendEl.textContent = txt;
+  }
+
+  // 2) Momentum (모멘텀) – RSI 구간 + 스코어 반영
+  if (momentumEl) {
+    let mood = "중립";
+    let txt = "";
+
+    if (rsi >= 70) {
+      mood = "과열";
+      txt =
+        `RSI ${rsi.toFixed(
+          1
+        )}로 단기 과열 구간에 진입한 상태입니다. 추세는 강하지만 신규 진입보다는 분할 청산/눌림 대기가 더 유리할 수 있습니다.`;
+    } else if (rsi >= 60) {
+      mood = "강세";
+      txt =
+        `RSI ${rsi.toFixed(
+          1
+        )}로 모멘텀은 강세 우위입니다. 추세 추종 관점에서 눌림 매수나 돌파 매매를 고려할 수 있는 구간입니다.`;
+    } else if (rsi <= 30) {
+      mood = "과매도";
+      txt =
+        `RSI ${rsi.toFixed(
+          1
+        )}로 과매도 구간에 가까운 자리입니다. 기술적 반등 여지는 있지만, 추세 자체가 약세라면 역추세 매매는 고위험 구간입니다.`;
+    } else if (rsi <= 40) {
+      mood = "약세";
+      txt =
+        `RSI ${rsi.toFixed(
+          1
+        )}로 모멘텀은 다소 약세 쪽으로 기울어 있습니다. 추가 하락이 이어질 수 있어 보수적인 접근이 필요합니다.`;
+    } else {
+      txt =
+        `RSI ${rsi.toFixed(
+          1
+        )}로 모멘텀은 중립 구간입니다. 뚜렷한 과열/과매도 신호보다는 추세와 지지·저항에서 방향성을 확인하는 편이 좋습니다.`;
+    }
+
+    momentumEl.textContent = txt;
+  }
+
+  // 3) Wave (파동) – S1/S2 + 위/아래 여유
+  if (waveEl) {
+    if (
+      support1 &&
+      resistance1 &&
+      analysis.riskPct &&
+      analysis.rewardPct1
+    ) {
+      const hasMajor = !!support2;
+      const s1Txt = formatUSD(support1);
+      const s2Txt = support2 ? formatUSD(support2) : null;
+      const r1Txt = formatUSD(resistance1);
+
+      let base =
+        `현재가(${formatUSD(analysis.price)}) 기준 ` +
+        `1차 지지선: ${s1Txt}, `;
+      if (hasMajor) {
+        base += `메이저 지지선: ${s2Txt}, `;
+      }
+      base += `주요 저항선: ${r1Txt}. `;
+
+      const upTxt = analysis.rewardPct1.toFixed(1);
+      const downTxt = analysis.riskPct.toFixed(1);
+
+      waveEl.textContent =
+        base +
+        `위로 +${upTxt}%, 아래로 -${downTxt}% 여유로, 손절·목표 구간을 설계할 때 참고할 수 있는 파동 구조입니다.`;
+    } else {
+      waveEl.textContent =
+        `현재가(${formatUSD(analysis.price)})가 20일선(${formatUSD(
+          analysis.ma20 || analysis.price
+        )}) 기준으로 위치를 형성 중입니다. 최근 봉 구조 기준 추가 파동 분석이 필요합니다.`;
+    }
+  }
+
+  // === (NEW) 실전형 엔진 – 수급 / Why-Today / 패턴&시나리오 ===
+  const chg = analysis.dailyChangePct;
+  const vr = analysis.volumeRatio;
+  const flowInfo = analysis.flowInfo;
+  const whyInfo = analysis.whyInfo;
+  const scenarioInfo = analysis.scenarioInfo;
+
+  // 4) Supply (수급) – 거래량+봉구조 기반 실전 해석
+  if (supplyEl) {
+    if (!flowInfo) {
+      supplyEl.textContent =
+        "수급 분석 데이터가 부족합니다. 봉 구조/거래량 정보를 다시 확인해주세요.";
+    } else {
+      supplyEl.textContent = `${flowInfo.flowLabel} · ${flowInfo.flowNote}`;
+    }
+  }
+
+  // 5) Pattern – 지지/저항 + 시나리오 기반
+  if (patternEl) {
+    let txt =
+      "특정 패턴(삼각수렴, 박스, 헤드앤숄더 등)을 자동 인식하진 않지만, 가격 위치와 지지·저항 기준으로 시나리오를 정리합니다.";
+
+    if (scenarioInfo && Array.isArray(scenarioInfo.scenarios)) {
+      const active = scenarioInfo.scenarios.filter((s) => s.condition);
+
+      if (active.length > 0) {
+        const s0 = active[0];
+        txt = `${s0.name} — ${s0.comment}`;
+      } else {
+        txt =
+          "현재 가격/RSI/지지·저항 기준으로 뚜렷하게 유리한 매매 시나리오는 보이지 않습니다. 기존 포지션 관리 또는 관망 위주의 구간으로 보는 편이 자연스럽습니다.";
+      }
+    }
+
+    patternEl.textContent = txt;
+  }
+
+  // 6) News & Sentiment – Why-Today 엔진
+  if (newsEl) {
+    if (!whyInfo) {
+      newsEl.textContent =
+        "현재 엔진에는 실시간 뉴스/심리가 연동되어 있지 않습니다. 가격과 거래량 기준으로만 해석합니다.";
+    } else {
+      newsEl.textContent = `${whyInfo.whyLabel} · ${whyInfo.whyNote}`;
+    }
+  }
+
+  // Fundamentals 더미 텍스트는 기존 유지
+  if (fundEl) {
+    fundEl.textContent =
+      "실적·밸류에이션(PSR, PER, FCF 등)은 비연동 상태 — 컨센서스/리포트 추가 확인 권장.";
+  }
+
+  // === 지표 박스 ===
+  if (rsiBox) {
+    let mood = "중립";
+    if (analysis.rsi >= 70) mood = "과열";
+    else if (analysis.rsi >= 60) mood = "강세";
+    else if (analysis.rsi <= 30) mood = "과매도";
+    else if (analysis.rsi <= 40) mood = "약세";
+    rsiBox.textContent = `${analysis.rsi.toFixed(1)} (${mood})`;
+  }
+
+  if (maBox) {
+    if (analysis.ma20 && analysis.ma60) {
+      let maMood = "중립/조정";
+      if (analysis.ma20 > analysis.ma60) maMood = "상승(골든크로스 우위)";
+      else if (analysis.ma20 < analysis.ma60)
+        maMood = "하락(데드크로스 우위)";
+      maBox.textContent = `${analysis.ma20.toFixed(
+        2
+      )} / ${analysis.ma60.toFixed(2)} (${maMood})`;
+    } else {
+      maBox.textContent = "데이터 부족";
+    }
+  }
+
+  if (macdBox) {
+    if (analysis.macd == null) {
+      macdBox.textContent = "데이터 부족";
+    } else {
+      const mood = analysis.macd > 0 ? "상승 에너지" : "하락 에너지";
+      macdBox.textContent = `${analysis.macd.toFixed(2)} (${mood})`;
+    }
+  }
+
+  // 타겟/손절
+  $("target1").textContent = formatUSD(analysis.target1);
+  $("target2").textContent = formatUSD(analysis.target2);
+  $("stoploss").textContent = formatUSD(analysis.stop);
+
+  // ------------------------------------
+  // 차트 (TradingView Advanced Chart)
+  // ------------------------------------
+  $("chart-container").innerHTML = "";
+
+  if (window.TradingView) {
+    new TradingView.widget({
+      symbol: data.symbol,
+      interval: "D",
+      container_id: "chart-container",
+      autosize: true,
+      theme: "dark",
+      style: "1",
+      locale: "kr",
+      timezone: "Etc/UTC",
+      hide_top_toolbar: false,
+      hide_legend: false,
+      withdateranges: true,
+      enable_publishing: false,
+      allow_symbol_change: false,
+
+      studies: [
+        { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
+        { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
+        { id: "MAExp@tv-basicstudies", inputs: { length: 120 } },
+        "RSI@tv-basicstudies",
+        "MACD@tv-basicstudies",
+        "BB@tv-basicstudies",
+      ],
+    });
+  } else {
+    console.warn("[ZAVIS] TradingView not loaded");
+  }
+
+  // --- 전략 요약 박스 업데이트 ---
+  const strategyMainEl = $("strategy-main");
+  const strategyDetailEl = $("strategy-detail");
+
+  if (strategyMainEl && strategyDetailEl) {
+    const {
+      price,
+      rsi,
+      support1,
+      resistance1,
+      riskPct,
+      rewardPct1,
+      rrRatio,
+    } = analysis;
+
+    const nearSupport =
+      support1 && price ? ((price - support1) / price) * 100 : null;
+    const nearResistance =
+      resistance1 && price ? ((resistance1 - price) / price) * 100 : null;
+
+    let scenario = "중립 구간";
+    let detail =
+      "추세·모멘텀·지지/저항이 모두 애매한 구간으로, 확신이 없다면 관망을 권장합니다.";
+
+    // ① 지지선 근처 + R:R 양호 → 눌림 매수
+    if (
+      nearSupport !== null &&
+      nearSupport >= 0 &&
+      nearSupport <= 3 &&
       rrRatio &&
       rrRatio >= 1.5 &&
       rsi >= 30 &&
@@ -1437,20 +1793,26 @@ async function runAnalysis() {
 
   setTimeout(async () => {
     try {
+      // 1) 가격/지표용 데이터
       const data = await fetchStockData(ticker);
+      // 2) 환율
       const fx = await fetchFxRate();
-      const analysis = analyzeData(data);
+      // 3) 기본 지표/지지·저항/R:R 분석
+      const baseAnalysis = analyzeData(data);
+      // 4) 수급(봉 구조 + 거래량)
+      const flowInfo = calcFlowSignal(data, baseAnalysis);
+      // 5) Why-Today (오늘 왜 이렇게 움직였는지)
+      const whyInfo = calcWhyTodaySignal(data, baseAnalysis, flowInfo);
+      // 6) 3안 전략 시나리오
+      const scenarioInfo = buildScenarios(data, baseAnalysis, flowInfo);
 
-      // === Step B: Flow / Why-Today / Scenario / Candle 패턴 연결 ===
-      const flowInfo = calcFlowSignal(data, analysis);
-      const whyInfo = calcWhyTodaySignal(data, analysis, flowInfo);
-      const scenarioInfo = buildScenarios(data, analysis, flowInfo);
-      const candleInfo = detectCandlePattern(data, analysis);
-
-      analysis.flowInfo = flowInfo;
-      analysis.whyInfo = whyInfo;
-      analysis.scenarioInfo = scenarioInfo;
-      analysis.candleInfo = candleInfo;
+      // 7) 하나의 analysis 객체로 합치기
+      const analysis = {
+        ...baseAnalysis,
+        flowInfo,
+        whyInfo,
+        scenarioInfo,
+      };
 
       // 포지션 계산기에서 쓸 마지막 분석 결과 저장
       lastAnalysis = analysis;
@@ -1557,4 +1919,5 @@ function calcPositionSize() {
       2
     )}% 리스크를 사용하는 포지션 크기입니다.`;
 }
+
 

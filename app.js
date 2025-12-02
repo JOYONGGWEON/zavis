@@ -1,5 +1,5 @@
 // ==========================================
-// ZAVIS™ LAB v6.2 - Stable Engine (with Macro Bar)
+// ZAVIS™ LAB v6.4 - Stable Engine (Step A+B+C 통합)
 // ==========================================
 
 // 1. 설정
@@ -22,22 +22,27 @@ const formatUSD = (num) =>
 
 function showToast(msg) {
   const el = $("toast-msg");
+  if (!el) return;
   el.textContent = msg;
   el.classList.remove("hidden");
   setTimeout(() => el.classList.add("hidden"), 3000);
 }
 
 function showLoading(isLoading) {
+  const loading = $("loading-indicator");
+  const card = $("result-card");
+  if (!loading || !card) return;
+
   if (isLoading) {
-    $("loading-indicator").classList.remove("hidden");
-    $("result-card").classList.add("hidden");
+    loading.classList.remove("hidden");
+    card.classList.add("hidden");
   } else {
-    $("loading-indicator").classList.add("hidden");
-    $("result-card").classList.remove("hidden");
+    loading.classList.add("hidden");
+    card.classList.remove("hidden");
   }
 }
 
-// 3. 공통 야후 파서
+// 3. 공통 야후 파서 (간단 버전)
 async function fetchYahooChart(symbol, range = "1d", interval = "1d") {
   const targetUrl = `${YAHOO_API_BASE}${encodeURIComponent(
     symbol
@@ -60,7 +65,6 @@ async function fetchYahooChart(symbol, range = "1d", interval = "1d") {
   if (!quoteArr) throw new Error("Quote array missing");
 
   const closes = (quoteArr.close || []).filter((v) => v != null);
-  const volumes = (quoteArr.volume || []).filter((v) => v != null);
 
   if (!closes.length) throw new Error("No closes");
 
@@ -69,7 +73,7 @@ async function fetchYahooChart(symbol, range = "1d", interval = "1d") {
       ? meta.regularMarketPrice
       : closes[closes.length - 1];
 
-  return { meta, closes, volumes, lastClose };
+  return { meta, closes, lastClose };
 }
 
 // 3-1. 개별 종목 데이터 (OHLC + Volume)
@@ -182,12 +186,12 @@ async function fetchMacroData() {
     let rate = null;
     if (tnx) {
       rate = tnx.lastClose / 10; // 43.21 -> 4.32%
-      $("macro-rate").textContent = rate.toFixed(2) + "%";
+      if ($("macro-rate")) $("macro-rate").textContent = rate.toFixed(2) + "%";
       let note = "중립 구간";
       if (rate < 3) note = "저금리, 성장주 우호";
       else if (rate > 5) note = "고금리, 변동성 주의";
-      $("macro-rate-note").textContent = note;
-    } else {
+      if ($("macro-rate-note")) $("macro-rate-note").textContent = note;
+    } else if ($("macro-rate-note")) {
       $("macro-rate-note").textContent = "데이터 수신 실패";
     }
 
@@ -195,12 +199,12 @@ async function fetchMacroData() {
     let vixVal = null;
     if (vix) {
       vixVal = vix.lastClose;
-      $("macro-vix").textContent = vixVal.toFixed(1);
+      if ($("macro-vix")) $("macro-vix").textContent = vixVal.toFixed(1);
       let note = "보통 변동성";
       if (vixVal < 15) note = "저변동성, 안정 구간";
       else if (vixVal > 25) note = "고변동성, 주의";
-      $("macro-vix-note").textContent = note;
-    } else {
+      if ($("macro-vix-note")) $("macro-vix-note").textContent = note;
+    } else if ($("macro-vix-note")) {
       $("macro-vix-note").textContent = "데이터 수신 실패";
     }
 
@@ -208,14 +212,15 @@ async function fetchMacroData() {
     let krwVal = null;
     if (krw) {
       krwVal = krw.lastClose;
-      $("macro-krw").textContent =
-        "₩" + Math.round(krwVal).toLocaleString("ko-KR");
+      if ($("macro-krw"))
+        $("macro-krw").textContent =
+          "₩" + Math.round(krwVal).toLocaleString("ko-KR");
       let note = "중립 수준";
       if (krwVal > 1400) note = "원화 약세, 수출주 우호";
       else if (krwVal < 1300) note = "원화 강세, 수출주 부담";
-      $("macro-krw-note").textContent = note;
+      if ($("macro-krw-note")) $("macro-krw-note").textContent = note;
       fxRateKRW = krwVal;
-    } else {
+    } else if ($("macro-krw-note")) {
       $("macro-krw-note").textContent = "데이터 수신 실패";
     }
 
@@ -223,13 +228,14 @@ async function fetchMacroData() {
     let btcVal = null;
     if (btc) {
       btcVal = btc.lastClose;
-      $("macro-btc").textContent =
-        "$" + Math.round(btcVal).toLocaleString("en-US");
+      if ($("macro-btc"))
+        $("macro-btc").textContent =
+          "$" + Math.round(btcVal).toLocaleString("en-US");
       let note = "중립/보통";
       if (btcVal > 80000) note = "고점권, 변동 주의";
       else if (btcVal < 40000) note = "저점/조정 구간";
-      $("macro-btc-note").textContent = note;
-    } else {
+      if ($("macro-btc-note")) $("macro-btc-note").textContent = note;
+    } else if ($("macro-btc-note")) {
       $("macro-btc-note").textContent = "데이터 수신 실패";
     }
 
@@ -277,7 +283,7 @@ async function fetchMacroData() {
       }
     }
 
-    // === 색상 클래스 실제 적용 ===
+    // 색상 클래스 적용
     updateRegimePills({
       risk: riskState,
       fx: fxState,
@@ -315,7 +321,7 @@ function generateDemoData(symbol) {
 
   return {
     symbol: symbol,
-    price,
+    price: price,
     opens,
     closes,
     highs,
@@ -375,7 +381,6 @@ function calcRSI_Wilder(closes, period = 14) {
   }
 
   if (avgLoss === 0) {
-    // 손실이 아예 없으면 RSI = 100으로 수렴
     return 100;
   }
 
@@ -384,7 +389,7 @@ function calcRSI_Wilder(closes, period = 14) {
   return rsi;
 }
 
-// TradingView MACD(12,26,9) 기준 MACD 라인만 사용
+// TradingView MACD(12,26) 기준 MACD 라인만 사용
 function calcMACD(closes) {
   if (!Array.isArray(closes) || closes.length < 26) return null;
   const ema12 = calcEMA(closes, 12);
@@ -422,16 +427,14 @@ function clusterSwingLevels(levels, totalBars) {
     } else {
       found.idxs.push(idx);
       found.lastIdx = Math.max(found.lastIdx, idx);
-      // 단순 평균으로 레벨 위치 보정
       const k = found.idxs.length;
       found.price = (found.price * (k - 1) + price) / k;
     }
   });
 
-  // 터치 횟수 + 최신성 가중치 점수 계산
   clusters.forEach((c) => {
     const touchCount = c.idxs.length;
-    const timeBoost = 1 + c.lastIdx / Math.max(1, totalBars); // 최신일수록 가점
+    const timeBoost = 1 + c.lastIdx / Math.max(1, totalBars);
     c.score = touchCount * timeBoost;
   });
 
@@ -444,16 +447,14 @@ function pickSupportResistance(clusters, lastPrice, isSupport) {
   );
   if (!filtered.length) return [];
 
-  // 1차: 점수(터치 + 최신성)로 상위 몇 개 추리기
   filtered.sort((a, b) => b.score - a.score);
   const top = filtered.slice(0, 5);
 
-  // 2차: 현재가와의 거리 기준으로 정렬(더 “실전에서 쓰기 좋은” 레벨 우선)
   top.sort(
     (a, b) => Math.abs(lastPrice - a.price) - Math.abs(lastPrice - b.price)
   );
 
-  return top; // [0]이 1차 레벨, [1]이 2차 레벨 후보
+  return top;
 }
 
 // 5. 지표 계산 엔진 (지지·저항 + R:R + 스코어)
@@ -466,16 +467,16 @@ function analyzeData(data) {
 
   const lastPrice = data.price || closes[n - 1];
 
-  // === 이동평균: EMA 기준 (TradingView MAExp 맞춤) ===
+  // === 이동평균: EMA 기준 ===
   const ma5 = calcEMA(closes, 5);
   const ma20 = calcEMA(closes, 20);
   const ma60 = calcEMA(closes, 60);
   const ma120 = calcEMA(closes, 120);
 
-  // === RSI(14) - Wilder 방식 ===
+  // === RSI(14) ===
   let rsi = calcRSI_Wilder(closes, 14);
   if (rsi == null) {
-    rsi = 50; // 데이터 부족 시 중립값
+    rsi = 50;
   }
 
   // === MACD (12,26) ===
@@ -488,7 +489,7 @@ function analyzeData(data) {
   let resistance2 = null;
 
   if (n >= 10) {
-    const start = Math.max(1, n - 80); // 최근 80봉 정도만 사용
+    const start = Math.max(1, n - 80);
     const swingLows = [];
     const swingHighs = [];
 
@@ -496,7 +497,6 @@ function analyzeData(data) {
       const h = highs[i];
       const l = lows[i];
 
-      // 스윙 하이 / 스윙 로우 탐지
       if (h > highs[i - 1] && h > highs[i + 1]) {
         swingHighs.push({ price: h, idx: i });
       }
@@ -505,11 +505,9 @@ function analyzeData(data) {
       }
     }
 
-    // 스윙들을 ±3% 박스 단위로 클러스터링 + 터치/최신성 점수 부여
     const lowClusters = clusterSwingLevels(swingLows, n);
     const highClusters = clusterSwingLevels(swingHighs, n);
 
-    // 현재가 기준 아래/위 레벨 중 “실전에서 쓸만한” 순서대로 선택
     const supportLevels = pickSupportResistance(lowClusters, lastPrice, true);
     const resistanceLevels = pickSupportResistance(
       highClusters,
@@ -523,7 +521,6 @@ function analyzeData(data) {
     if (resistanceLevels.length > 0) resistance1 = resistanceLevels[0].price;
     if (resistanceLevels.length > 1) resistance2 = resistanceLevels[1].price;
 
-    // 혹시라도 못 잡았을 때 최소/최대값으로 마지막 보정
     if (support1 === null) {
       const recentLows = lows.slice(Math.max(0, n - 60));
       const minLow = Math.min(...recentLows);
@@ -556,16 +553,15 @@ function analyzeData(data) {
   }
 
   // === 타겟/손절 (과도하게 먼 손절은 가드레일) ===
-  const MAX_RISK_PCT = 25; // 손절이 -25% 이상 벌어지면 비실전 구간으로 간주
+  const MAX_RISK_PCT = 25;
 
   let stopBase = support1 ? support1 : lastPrice * 0.95;
 
-  // 손절이 너무 멀면 “실전 가드레일”로 한 번 더 보정
   let tmpRiskPct = ((lastPrice - stopBase) / lastPrice) * 100;
   if (tmpRiskPct > MAX_RISK_PCT) {
     stopBase = lastPrice * (1 - MAX_RISK_PCT / 100);
     tmpRiskPct = ((lastPrice - stopBase) / lastPrice) * 100;
-    riskPct = tmpRiskPct; // R:R 계산에도 보정값 사용
+    riskPct = tmpRiskPct;
   }
 
   let stop = stopBase * 0.99;
@@ -583,7 +579,7 @@ function analyzeData(data) {
     target2 = lastPrice * 1.15;
   }
 
-  // === (NEW) 일일 변동률 & 거래량 비율 ===
+  // === 일일 변동률 & 거래량 비율 ===
   let dailyChangePct = null;
   if (n >= 2) {
     const prev = closes[n - 2];
@@ -596,7 +592,7 @@ function analyzeData(data) {
   const vLen = volumes.length;
   if (vLen >= 21) {
     const todayVol = volumes[vLen - 1];
-    const window = volumes.slice(vLen - 21, vLen - 1); // 직전 20일
+    const window = volumes.slice(vLen - 21, vLen - 1);
     const avg = window.reduce((a, b) => a + b, 0) / window.length;
     if (avg > 0) volumeRatio = todayVol / avg;
   }
@@ -666,7 +662,6 @@ function analyzeData(data) {
     else if (rrRatio < 1) score -= 10;
   }
 
-  // 최종 스코어/랭크
   score = Math.round(Math.max(0, Math.min(99, score)));
 
   let rank = "C";
@@ -695,14 +690,13 @@ function analyzeData(data) {
     target1,
     target2,
     stop,
-    // NEW: 일일 변동률 & 거래량 비율
     dailyChangePct,
     volumeRatio,
   };
 }
 
 // ===============================
-// 수급 패턴/Why-Today/전략 시나리오 헬퍼
+// 수급 / Why-Today / 전략 시나리오 / 캔들 패턴
 // ===============================
 
 // 1) 거래량·봉구조 기반 수급 신호
@@ -729,15 +723,13 @@ function calcFlowSignal(data, analysis) {
   const upperWick = h - Math.max(o, c);
   const lowerWick = Math.min(o, c) - l;
 
-  const volRatio = analysis.volumeRatio; // analyzeData에서 계산한 값 사용
+  const volRatio = analysis.volumeRatio;
 
-  // 기본 분류값
   let flowType = "NEUTRAL";
   let flowLabel = "수급 중립";
   let flowNote =
     "거래량과 봉 구조 모두 평균적인 수준 — 뚜렷한 수급 쏠림보다는 추세/지지·저항이 더 중요.";
 
-  // 매수/매도 우위 분류 (실전용 러프 룰)
   if (volRatio != null && volRatio >= 1.3 && bodyRatio >= 0.4 && c > o) {
     flowType = "BUY_DOMINANT";
     flowLabel = "매수세 우위";
@@ -764,10 +756,10 @@ function calcFlowSignal(data, analysis) {
     flowType = "EMPTY";
     flowLabel = "수급 공백";
     flowNote =
-      "거래량이 평소 대비 현저히 적은 ‘수급 공백’ 구간입니다. 큰손이 자리를 잡기 전인 경우가 많아, 장기 투자자는 상관 없지만 단기 트레이더는 매매 효율이 떨어질 수 있습니다.";
+      "거래량이 평소 대비 현저히 적은 ‘수급 공백’ 구간입니다. 큰손이 자리를 잡기 전인 경우가 많아, 단기 트레이더는 매매 효율이 떨어질 수 있습니다.";
   }
 
-  return { flowType, flowLabel, flowNote, bodyRatio, volRatio, upperWick, lowerWick };
+  return { flowType, flowLabel, flowNote, bodyRatio, volRatio };
 }
 
 // 2) 일일 변동·갭·수급 기반 Why-Today
@@ -792,7 +784,6 @@ function calcWhyTodaySignal(data, analysis, flowInfo) {
 
   if (chg != null && volRatio != null) {
     if (chg >= 3 && volRatio >= 1.5) {
-      // 양봉+급증
       whyLabel = "강한 재료 가능성";
       whyNote =
         `당일 수익률이 약 ${chg.toFixed(
@@ -802,7 +793,6 @@ function calcWhyTodaySignal(data, analysis, flowInfo) {
         )}배 수준입니다. ` +
         "실적 서프라이즈, 가이던스 상향, 대형 수주/정책 호재, 또는 M&A 관련 뉴스 등 강한 재료가 개입됐을 확률이 높은 흐름입니다.";
     } else if (chg <= -3 && volRatio >= 1.5) {
-      // 음봉+급증
       whyLabel = "악재/청산 가능성";
       whyNote =
         `당일 -${Math.abs(chg).toFixed(
@@ -828,7 +818,6 @@ function buildScenarios(data, analysis, flowInfo) {
 
   const scenarios = [];
 
-  // 1안: 추세/지지 기반 눌림 매수
   scenarios.push({
     name: "1안) 추세/지지 기반 매수",
     condition:
@@ -844,7 +833,6 @@ function buildScenarios(data, analysis, flowInfo) {
       "추세가 꺾이지 않은 상태에서 눌림이 나온 구간으로, 손절 폭 대비 위쪽 기대 수익이 유리한 구조일 때 활용하는 전략입니다.",
   });
 
-  // 2안: 저항 돌파 추세 추종
   scenarios.push({
     name: "2안) 저항 돌파 추세 추종",
     condition:
@@ -858,7 +846,6 @@ function buildScenarios(data, analysis, flowInfo) {
       "기관·큰손 매수가 동반된 돌파 구간일 때, 눌림을 기다리거나 소량 추세 추종으로 접근하는 전략입니다.",
   });
 
-  // 3안: 역추세 과매도 반등
   scenarios.push({
     name: "3안) 역추세 저점 매수(고위험)",
     condition: rsi < 30 && support1 && price && rrRatio && rrRatio >= 1.2,
@@ -878,7 +865,269 @@ function buildScenarios(data, analysis, flowInfo) {
   };
 }
 
-// 6. UI 업데이트 (STEP A+B 통합 버전)
+// 4) 캔들 패턴 인식 (⚡Signal 섹터용)
+function detectCandlePatterns(data, analysis) {
+  const { opens, closes, highs, lows } = data;
+  const n = closes.length;
+  if (!opens || opens.length !== n || n < 3) return [];
+
+  const patterns = [];
+
+  const idx = n - 1;
+  const o = opens[idx];
+  const c = closes[idx];
+  const h = highs[idx];
+  const l = lows[idx];
+
+  const o1 = opens[idx - 1];
+  const c1 = closes[idx - 1];
+  const h1 = highs[idx - 1];
+  const l1 = lows[idx - 1];
+
+  const o2 = opens[idx - 2];
+  const c2 = closes[idx - 2];
+  const h2 = highs[idx - 2];
+  const l2 = lows[idx - 2];
+
+  const body = Math.abs(c - o);
+  const range = Math.max(h, l, o, c) - Math.min(h, l, o, c) || 1e-9;
+  const bodyRatio = body / range;
+  const upperWick = h - Math.max(o, c);
+  const lowerWick = Math.min(o, c) - l;
+
+  const isBull = c > o;
+  const isBear = c < o;
+
+  const body1 = Math.abs(c1 - o1);
+  const range1 =
+    Math.max(h1, l1, o1, c1) - Math.min(h1, l1, o1, c1) || 1e-9;
+  const isBull1 = c1 > o1;
+  const isBear1 = c1 < o1;
+
+  const body2 = Math.abs(c2 - o2);
+  const range2 =
+    Math.max(h2, l2, o2, c2) - Math.min(h2, l2, o2, c2) || 1e-9;
+  const isBull2 = c2 > o2;
+  const isBear2 = c2 < o2;
+
+  // 4-1) Bullish Engulfing
+  if (
+    isBull &&
+    isBear1 &&
+    o < c1 &&
+    c > o1 &&
+    bodyRatio > 0.4 &&
+    body1 / (range1 || 1e-9) > 0.2
+  ) {
+    patterns.push({
+      name: "강한 Bullish Engulfing",
+      strength: 3,
+      comment:
+        "전일 음봉을 통째로 감싸는 강한 양봉이 출현해, 단기 추세 전환/반등 가능성이 높은 패턴입니다.",
+    });
+  }
+
+  // 4-2) Bearish Engulfing
+  if (
+    isBear &&
+    isBull1 &&
+    o > c1 &&
+    c < o1 &&
+    bodyRatio > 0.4 &&
+    body1 / (range1 || 1e-9) > 0.2
+  ) {
+    patterns.push({
+      name: "강한 Bearish Engulfing",
+      strength: 3,
+      comment:
+        "전일 양봉을 통째로 뒤집는 강한 음봉이 출현해, 단기 상방 피로/조정 가능성이 높은 패턴입니다.",
+    });
+  }
+
+  // 4-3) Hammer (망치형)
+  if (
+    bodyRatio < 0.4 &&
+    lowerWick > body * 2 &&
+    upperWick < body * 0.5 &&
+    isBull
+  ) {
+    patterns.push({
+      name: "Hammer (망치형)",
+      strength: 2,
+      comment:
+        "아랫꼬리가 긴 망치형 캔들로, 아래꼬리 구간에서 매수 방어가 강하게 나온 신호입니다. 지지선 부근이라면 기술적 반등 가능성이 있습니다.",
+    });
+  }
+
+  // 4-4) Shooting Star (역망치형)
+  if (
+    bodyRatio < 0.4 &&
+    upperWick > body * 2 &&
+    lowerWick < body * 0.5 &&
+    isBear
+  ) {
+    patterns.push({
+      name: "Shooting Star (역망치형)",
+      strength: 2,
+      comment:
+        "윗꼬리가 긴 역망치형 캔들로, 위쪽에서 매도 압력이 강하게 나온 신호입니다. 저항선 부근이라면 단기 피크/조정 가능성을 시사합니다.",
+    });
+  }
+
+  // 4-5) Doji
+  if (bodyRatio < 0.1) {
+    patterns.push({
+      name: "Doji (십자형)",
+      strength: 1,
+      comment:
+        "시가와 종가가 거의 같은 십자형 캔들로, 매수·매도 힘이 팽팽하게 맞선 변곡 신호입니다. 이후 봉의 방향성이 중요합니다.",
+    });
+  }
+
+  // 4-6) Three White Soldiers
+  const strongBull =
+    isBull && bodyRatio > 0.5 && c > (h + l) / 2 && c > c1 && c1 > c2;
+  if (
+    strongBull &&
+    isBull1 &&
+    isBull2 &&
+    body1 / (range1 || 1e-9) > 0.3 &&
+    body2 / (range2 || 1e-9) > 0.3 &&
+    o1 >= o2 &&
+    o >= o1
+  ) {
+    patterns.push({
+      name: "Three White Soldiers",
+      strength: 4,
+      comment:
+        "3일 연속 강한 양봉이 계단식으로 이어지는 강력한 상승 패턴입니다. 추세 전환 또는 추세 강화 신호로, 눌림 매수/추세 추종 전략과 궁합이 좋습니다.",
+    });
+  }
+
+  // 4-7) Three Black Crows
+  const strongBear =
+    isBear && bodyRatio > 0.5 && c < (h + l) / 2 && c < c1 && c1 < c2;
+  if (
+    strongBear &&
+    isBear1 &&
+    isBear2 &&
+    body1 / (range1 || 1e-9) > 0.3 &&
+    body2 / (range2 || 1e-9) > 0.3 &&
+    o1 <= o2 &&
+    o <= o1
+  ) {
+    patterns.push({
+      name: "Three Black Crows",
+      strength: 4,
+      comment:
+        "3일 연속 강한 음봉이 계단식으로 이어지는 강력한 하락 패턴입니다. 기존 보유자는 리스크 관리, 신규 진입자는 관망/공매도 전략 검토 구간입니다.",
+    });
+  }
+
+  // 4-8) Bullish Marubozu (거의 꼬리 없는 장대양봉)
+  if (isBull && bodyRatio > 0.8 && upperWick < body * 0.1 && lowerWick < body * 0.1) {
+    patterns.push({
+      name: "Bullish Marubozu",
+      strength: 3,
+      comment:
+        "시가 대비 거의 조정 없이 종가까지 쭉 뻗은 장대양봉으로, 하루 동안 매수세가 압도한 패턴입니다. 다음 날 갭락 리스크를 감안한 분할 접근이 유리합니다.",
+    });
+  }
+
+  // 4-9) Bearish Marubozu
+  if (isBear && bodyRatio > 0.8 && upperWick < body * 0.1 && lowerWick < body * 0.1) {
+    patterns.push({
+      name: "Bearish Marubozu",
+      strength: 3,
+      comment:
+        "시가 대비 거의 반등 없이 종가까지 밀린 장대음봉으로, 하루 동안 매도세가 압도한 패턴입니다. 단기 반등이 나와도 재차 매물이 출회될 수 있는 구간입니다.",
+    });
+  }
+
+  // 점수 높은 순으로 정렬
+  patterns.sort((a, b) => b.strength - a.strength);
+
+  return patterns;
+}
+
+// ─────────────────────────────────────
+// 6-1. Market Regime Pill 색상 적용 함수
+// ─────────────────────────────────────
+function updateRegimePills(regime) {
+  const riskPill = $("regime-risk");
+  const fxPill = $("regime-fx");
+  const cryptoPill = $("regime-crypto");
+  if (!riskPill || !fxPill || !cryptoPill) return;
+
+  const all = [riskPill, fxPill, cryptoPill];
+
+  all.forEach((p) =>
+    p.classList.remove(
+      "regime-pill-neutral",
+      "regime-pill-riskon",
+      "regime-pill-riskoff",
+      "regime-pill-fx-weak",
+      "regime-pill-fx-strong",
+      "regime-pill-crypto-hot",
+      "regime-pill-crypto-cold"
+    )
+  );
+
+  if (regime.risk === "Risk On") {
+    riskPill.classList.add("regime-pill-riskon");
+  } else if (regime.risk === "Risk Off") {
+    riskPill.classList.add("regime-pill-riskoff");
+  } else {
+    riskPill.classList.add("regime-pill-neutral");
+  }
+
+  if (regime.fx === "약세") {
+    fxPill.classList.add("regime-pill-fx-weak");
+  } else if (regime.fx === "강세") {
+    fxPill.classList.add("regime-pill-fx-strong");
+  } else {
+    fxPill.classList.add("regime-pill-neutral");
+  }
+
+  if (regime.crypto === "Hot") {
+    cryptoPill.classList.add("regime-pill-crypto-hot");
+  } else if (regime.crypto === "Cold") {
+    cryptoPill.classList.add("regime-pill-crypto-cold");
+  } else {
+    cryptoPill.classList.add("regime-pill-neutral");
+  }
+}
+
+// 6-2. 종목 라벨 / 섹터 태깅 (간단 버전)
+function classifyTickerSymbol(symbol) {
+  const s = (symbol || "").toUpperCase();
+  const labels = [];
+
+  // 대형 테크/AI
+  if (["AAPL", "MSFT", "GOOGL", "META", "AMZN", "NVDA", "TSLA"].includes(s)) {
+    labels.push("Mega Tech");
+  }
+  if (["NVDA", "AMD", "AVGO", "ASML", "TSM", "SMH", "SOXX"].includes(s)) {
+    labels.push("Semi / AI");
+  }
+
+  // ETF/인덱스
+  if (s.endsWith("USD")) {
+    labels.push("Crypto");
+  }
+  if (["QQQ", "SPY", "VOO", "DIA"].includes(s)) {
+    labels.push("Index ETF");
+  }
+
+  // 디폴트
+  if (labels.length === 0) {
+    labels.push("Single Stock");
+  }
+
+  return labels;
+}
+
+// 7. UI 업데이트 (⚡Signal 섹터 포함)
 function updateUI(data, analysis, fxRate) {
   const priceEl = $("ticker-price");
   const scoreEl = $("ai-score");
@@ -888,13 +1137,14 @@ function updateUI(data, analysis, fxRate) {
   const momentumEl = $("momentum-txt");
   const waveEl = $("wave-txt");
   const supplyEl = $("supply-txt");
-  const patternEl = $("pattern-txt");
+  const signalEl = $("pattern-txt"); // 제목은 HTML에서 ⚡Signal 로 표기
   const newsEl = $("news-txt");
   const fundEl = $("fund-txt");
 
   const rsiBox = $("rsi-txt");
   const maBox = $("ma-txt");
   const macdBox = $("macd-txt");
+  const labelBox = $("ticker-labels");
 
   $("ticker-symbol").textContent = data.symbol;
 
@@ -905,6 +1155,12 @@ function updateUI(data, analysis, fxRate) {
     priceText += " / ₩" + Math.round(krw).toLocaleString("ko-KR");
   }
   priceEl.textContent = priceText;
+
+  // 라벨/섹터 태깅
+  if (labelBox) {
+    const labels = classifyTickerSymbol(data.symbol);
+    labelBox.textContent = labels.join(" · ");
+  }
 
   // 점수 / 랭크
   scoreEl.textContent = analysis.score;
@@ -974,7 +1230,7 @@ function updateUI(data, analysis, fxRate) {
   const { ma20, ma60, ma120, rsi, price, support1, support2, resistance1 } =
     analysis;
 
-  // 1) Trend (추세) – 이평 정배열 + 위치 기반
+  // 1) Trend (추세)
   if (trendEl) {
     let txt = "단기/중기 이평선 기준으로 추세를 평가합니다.";
 
@@ -1006,7 +1262,7 @@ function updateUI(data, analysis, fxRate) {
     trendEl.textContent = txt;
   }
 
-  // 2) Momentum (모멘텀) – RSI 구간 + 스코어 반영
+  // 2) Momentum (모멘텀)
   if (momentumEl) {
     let txt = "";
 
@@ -1066,7 +1322,7 @@ function updateUI(data, analysis, fxRate) {
 
       waveEl.textContent =
         base +
-        `위로 +${upTxt}%, 아래로 -${downTxt}% 여유로, 손절·목표 구간을 설계할 때 참고할 수 있는 파동 구조입니다.`;
+        `위로 +${upTxt}%, 아래로 -${downTxt}% 여유로, 손절·목표 구간 설계에 참고할 수 있는 파동 구조입니다.`;
     } else {
       waveEl.textContent =
         `현재가(${formatUSD(analysis.price)})가 20일선(${formatUSD(
@@ -1075,12 +1331,13 @@ function updateUI(data, analysis, fxRate) {
     }
   }
 
-  // === (NEW) 실전형 엔진 – 수급 / Why-Today / 패턴&시나리오 ===
+  // === 실전형 엔진 – 수급 / ⚡Signal / Why-Today ===
   const flowInfo = analysis.flowInfo;
   const whyInfo = analysis.whyInfo;
   const scenarioInfo = analysis.scenarioInfo;
+  const candlePatterns = analysis.candlePatterns || [];
 
-  // 4) Supply (수급) – 거래량+봉구조 기반 실전 해석
+  // 4) Supply (수급)
   if (supplyEl) {
     if (!flowInfo) {
       supplyEl.textContent =
@@ -1090,40 +1347,46 @@ function updateUI(data, analysis, fxRate) {
     }
   }
 
-  // 5) Pattern – 지지/저항 + 시나리오 기반
-  if (patternEl) {
+  // 5) ⚡Signal – 캔들 패턴 + 시나리오
+  if (signalEl) {
     let txt =
-      "특정 패턴(삼각수렴, 박스, 헤드앤숄더 등)을 자동 인식하진 않지만, 가격 위치와 지지·저항 기준으로 시나리오를 정리합니다.";
+      "지지·저항, RSI, 수급을 종합해 매매 시나리오와 캔들 패턴을 정리합니다.";
 
-    if (scenarioInfo && Array.isArray(scenarioInfo.scenarios)) {
-      const active = scenarioInfo.scenarios.filter((s) => s.condition);
+    const activeScenario =
+      scenarioInfo &&
+      Array.isArray(scenarioInfo.scenarios) &&
+      scenarioInfo.scenarios.filter((s) => s.condition);
 
-      if (active.length > 0) {
-        const s0 = active[0];
-        txt = `${s0.name} — ${s0.comment}`;
-      } else {
-        txt =
-          "현재 가격/RSI/지지·저항 기준으로 뚜렷하게 유리한 매매 시나리오는 보이지 않습니다. 기존 포지션 관리 또는 관망 위주의 구간으로 보는 편이 자연스럽습니다.";
-      }
-    }
+    const topScenario =
+      activeScenario && activeScenario.length > 0 ? activeScenario[0] : null;
 
-    patternEl.textContent = txt;
-  }
+    const topPattern =
+      candlePatterns && candlePatterns.length > 0 ? candlePatterns[0] : null;
 
-  // 6) News & Sentiment – Why-Today 엔진
-  if (newsEl) {
-    if (!whyInfo) {
-      newsEl.textContent =
-        "현재 엔진에는 실시간 뉴스/심리가 연동되어 있지 않습니다. 가격과 거래량 기준으로만 해석합니다.";
+    if (topPattern && topScenario) {
+      txt = `⚡ ${topPattern.name} + ${topScenario.name}\n\n${topPattern.comment} ${topScenario.comment}`;
+    } else if (topPattern) {
+      txt = `⚡ ${topPattern.name} — ${topPattern.comment}`;
+    } else if (topScenario) {
+      txt = `${topScenario.name} — ${topScenario.comment}`;
     } else {
-      newsEl.textContent = `${whyInfo.whyLabel} · ${whyInfo.whyNote}`;
+      txt =
+        "현재 가격/RSI/지지·저항 기준으로 뚜렷하게 유리한 매매 시나리오는 보이지 않습니다. 기존 포지션 관리 또는 관망 위주의 구간으로 보는 편이 자연스럽습니다.";
     }
+
+    signalEl.textContent = txt;
   }
 
-  // Fundamentals 더미 텍스트는 기존 유지
+  // 6) News & Sentiment – 현재는 요약 가이드만
+  if (newsEl) {
+    newsEl.textContent =
+      "실시간 뉴스/심리 데이터는 직접 연동되어 있지 않습니다. 대신 오늘의 변동과 거래량, 수급·패턴 시그널을 기준으로 리스크/기회를 요약해 보여줍니다.";
+  }
+
+  // Fundamentals 더미 텍스트 (실제 연동 전까지)
   if (fundEl) {
     fundEl.textContent =
-      "실적·밸류에이션(PSR, PER, FCF 등)은 비연동 상태 — 컨센서스/리포트 추가 확인 권장.";
+      "실적·밸류에이션(PSR, PER, FCF 등)은 아직 비연동 상태입니다. 추후 컨센서스/리포트 API 연동 시 이 구간에 반영할 예정입니다.";
   }
 
   // === 지표 박스 ===
@@ -1167,9 +1430,10 @@ function updateUI(data, analysis, fxRate) {
   // ------------------------------------
   // 차트 (TradingView Advanced Chart)
   // ------------------------------------
-  $("chart-container").innerHTML = "";
+  const chartContainer = $("chart-container");
+  if (chartContainer) chartContainer.innerHTML = "";
 
-  if (window.TradingView) {
+  if (window.TradingView && chartContainer) {
     new TradingView.widget({
       symbol: data.symbol,
       interval: "D",
@@ -1184,7 +1448,6 @@ function updateUI(data, analysis, fxRate) {
       withdateranges: true,
       enable_publishing: false,
       allow_symbol_change: false,
-
       studies: [
         { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
         { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
@@ -1204,58 +1467,53 @@ function updateUI(data, analysis, fxRate) {
 
   if (strategyMainEl && strategyDetailEl) {
     const {
-      price: p,
-      rsi: r,
+      price: curPrice,
+      rsi: curRsi,
       support1: s1,
       resistance1: r1,
-      riskPct: dRisk,
-      rewardPct1: uReward,
+      riskPct,
+      rewardPct1,
       rrRatio,
     } = analysis;
 
-    const nearSupport = s1 && p ? ((p - s1) / p) * 100 : null;
-    const nearResistance = r1 && p ? ((r1 - p) / p) * 100 : null;
+    const nearSupport =
+      s1 && curPrice ? ((curPrice - s1) / curPrice) * 100 : null;
+    const nearResistance =
+      r1 && curPrice ? ((r1 - curPrice) / curPrice) * 100 : null;
 
     let scenario = "중립 구간";
     let detail =
       "추세·모멘텀·지지/저항이 모두 애매한 구간으로, 확신이 없다면 관망을 권장합니다.";
 
-    // ① 지지선 근처 + R:R 양호 → 눌림 매수
     if (
       nearSupport !== null &&
       nearSupport >= 0 &&
       nearSupport <= 3 &&
       rrRatio &&
       rrRatio >= 1.5 &&
-      r >= 30 &&
-      r <= 60
+      curRsi >= 30 &&
+      curRsi <= 60
     ) {
       scenario = "지지선 부근 눌림 매수 시나리오";
       detail =
         "주요 지지선 근처에서 눌림이 나온 구간으로, 손절 폭 대비 상승 여력이 더 큰 자리입니다. " +
         "지지선 이탈 시에는 신속한 손절 관리가 필요합니다.";
-    }
-    // ② 저항선 근처 + RSI 과열 → 돌파 관찰/부분청산
-    else if (
+    } else if (
       nearResistance !== null &&
       nearResistance >= 0 &&
       nearResistance <= 3 &&
-      r >= 60
+      curRsi >= 60
     ) {
       scenario = "저항선 돌파 관찰 / 부분청산 구간";
       detail =
         "주요 저항선 인근 구간으로, 돌파 시 추가 시세가 나올 수 있지만 " +
         "되밀릴 경우 단기 조정이 나올 수 있는 자리입니다. 일부 분할 매도 또는 관망 전략이 유효합니다.";
-    }
-    // ③ RSI 과매도 → 역추세 반등(고위험)
-    else if (r < 30) {
+    } else if (curRsi < 30) {
       scenario = "역추세 반등(고위험) 시나리오";
       detail =
         "RSI 기준 과매도 구간으로, 단기 반등이 나올 수 있지만 추세 자체는 약세입니다. " +
         "짧은 손절과 소액/분할 진입 중심의 고위험 전략 구간입니다.";
-    }
-    // ④ R:R가 1 미만 → 리스크/보상 비대칭
-    else if (rrRatio && rrRatio < 1) {
+    } else if (rrRatio && rrRatio < 1) {
       scenario = "리스크 대비 보상이 불리한 구간";
       detail =
         "현재 손절까지의 리스크가 위쪽 기대수익보다 큰 구조입니다. " +
@@ -1264,16 +1522,16 @@ function updateUI(data, analysis, fxRate) {
 
     let rrSentence = "";
     if (
-      Number.isFinite(uReward) &&
-      Number.isFinite(dRisk) &&
+      Number.isFinite(rewardPct1) &&
+      Number.isFinite(riskPct) &&
       Number.isFinite(rrRatio) &&
-      dRisk > 0
+      riskPct > 0
     ) {
       rrSentence =
-        `현재 위쪽 기대수익은 약 +${uReward.toFixed(
+        `현재 위쪽 기대수익은 약 +${rewardPct1.toFixed(
           1
         )}%, ` +
-        `손절까지 하방 리스크는 약 -${dRisk.toFixed(
+        `손절까지 하방 리스크는 약 -${riskPct.toFixed(
           1
         )}%로, ` +
         `R:R ≈ ${rrRatio.toFixed(2)} : 1 수준입니다. `;
@@ -1290,58 +1548,7 @@ function updateUI(data, analysis, fxRate) {
   }
 }
 
-// ─────────────────────────────────────
-// 6-1. Market Regime Pill 색상 적용 함수
-// ─────────────────────────────────────
-function updateRegimePills(regime) {
-  const riskPill = $("regime-risk");
-  const fxPill = $("regime-fx");
-  const cryptoPill = $("regime-crypto");
-  if (!riskPill || !fxPill || !cryptoPill) return;
-
-  const all = [riskPill, fxPill, cryptoPill];
-
-  all.forEach((p) =>
-    p.classList.remove(
-      "regime-pill-neutral",
-      "regime-pill-riskon",
-      "regime-pill-riskoff",
-      "regime-pill-fx-weak",
-      "regime-pill-fx-strong",
-      "regime-pill-crypto-hot",
-      "regime-pill-crypto-cold"
-    )
-  );
-
-  // Risk
-  if (regime.risk === "Risk On") {
-    riskPill.classList.add("regime-pill-riskon");
-  } else if (regime.risk === "Risk Off") {
-    riskPill.classList.add("regime-pill-riskoff");
-  } else {
-    riskPill.classList.add("regime-pill-neutral");
-  }
-
-  // FX
-  if (regime.fx === "약세") {
-    fxPill.classList.add("regime-pill-fx-weak");
-  } else if (regime.fx === "강세") {
-    fxPill.classList.add("regime-pill-fx-strong");
-  } else {
-    fxPill.classList.add("regime-pill-neutral");
-  }
-
-  // Crypto
-  if (regime.crypto === "Hot") {
-    cryptoPill.classList.add("regime-pill-crypto-hot");
-  } else if (regime.crypto === "Cold") {
-    cryptoPill.classList.add("regime-pill-crypto-cold");
-  } else {
-    cryptoPill.classList.add("regime-pill-neutral");
-  }
-}
-
-// 7. 메인 실행 함수 (STEP B 반영)
+// 8. 메인 실행 함수
 async function runAnalysis() {
   const input = $("ticker-input");
   const ticker = input.value.trim();
@@ -1356,28 +1563,22 @@ async function runAnalysis() {
 
   setTimeout(async () => {
     try {
-      // 1) 가격/지표용 데이터
       const data = await fetchStockData(ticker);
-      // 2) 환율
       const fx = await fetchFxRate();
-      // 3) 기본 지표/지지·저항/R:R 분석
       const baseAnalysis = analyzeData(data);
-      // 4) 수급(봉 구조 + 거래량)
       const flowInfo = calcFlowSignal(data, baseAnalysis);
-      // 5) Why-Today (오늘 왜 이렇게 움직였는지)
       const whyInfo = calcWhyTodaySignal(data, baseAnalysis, flowInfo);
-      // 6) 3안 전략 시나리오
       const scenarioInfo = buildScenarios(data, baseAnalysis, flowInfo);
+      const candlePatterns = detectCandlePatterns(data, baseAnalysis);
 
-      // 7) 하나의 analysis 객체로 합치기
       const analysis = {
         ...baseAnalysis,
         flowInfo,
         whyInfo,
         scenarioInfo,
+        candlePatterns,
       };
 
-      // 포지션 계산기에서 쓸 마지막 분석 결과 저장
       lastAnalysis = analysis;
 
       updateUI(data, analysis, fx);
@@ -1390,29 +1591,7 @@ async function runAnalysis() {
   }, 300);
 }
 
-// 8. 이벤트 리스너 & 포지션 사이즈 계산기
-window.onload = function () {
-  console.log("[ZAVIS] System Ready");
-
-  $("search-btn").addEventListener("click", runAnalysis);
-
-  $("ticker-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      runAnalysis();
-    }
-  });
-
-  const posBtn = $("pos-calc-btn");
-  if (posBtn) {
-    posBtn.addEventListener("click", calcPositionSize);
-  }
-
-  // 상단 매크로 바 로딩
-  fetchMacroData();
-};
-
-// 포지션 사이즈 계산기 로직
+// 9. 포지션 사이즈 계산기
 function calcPositionSize() {
   if (!lastAnalysis) {
     showToast("먼저 티커 분석을 실행해주세요.");
@@ -1444,7 +1623,6 @@ function calcPositionSize() {
     return;
   }
 
-  // 진입가 비어 있으면 현재가로 자동 사용
   if (!Number.isFinite(entry) || entry <= 0) {
     entry = lastAnalysis.price;
     entryInput.value = entry.toFixed(2);
@@ -1462,23 +1640,53 @@ function calcPositionSize() {
     return;
   }
 
-  const riskAmount = capital * (riskPct / 100); // 계좌에서 허용할 손실 금액
+  const riskAmount = capital * (riskPct / 100);
   const rawShares = Math.floor(riskAmount / riskPerShare);
 
   if (!Number.isFinite(rawShares) || rawShares <= 0) {
     showToast("현재 손절 위치 기준으로는 리스크가 너무 큽니다.");
-    sizeSpan.textContent = "수량: 계산 불가";
-    riskAmtSpan.textContent = `손실 한도: ${formatUSD(riskAmount)}`;
+    if (sizeSpan)
+      sizeSpan.textContent = "수량: 계산 불가";
+    if (riskAmtSpan)
+      riskAmtSpan.textContent = `손실 한도: ${formatUSD(riskAmount)}`;
     return;
   }
 
-  sizeSpan.textContent = `수량: 약 ${rawShares.toLocaleString("en-US")}주`;
-  riskAmtSpan.textContent = `손실 한도: ${formatUSD(riskAmount)}`;
-  hint.textContent =
-    `진입가 ${formatUSD(entry)} / 손절가 ${formatUSD(
-      stop
-    )} 기준, ` +
-    `계좌 ${formatUSD(capital)}에서 ${riskPct.toFixed(
-      2
-    )}% 리스크를 사용하는 포지션 크기입니다.`;
+  if (sizeSpan)
+    sizeSpan.textContent = `수량: 약 ${rawShares.toLocaleString("en-US")}주`;
+  if (riskAmtSpan)
+    riskAmtSpan.textContent = `손실 한도: ${formatUSD(riskAmount)}`;
+  if (hint)
+    hint.textContent =
+      `진입가 ${formatUSD(entry)} / 손절가 ${formatUSD(
+        stop
+      )} 기준, ` +
+      `계좌 ${formatUSD(capital)}에서 ${riskPct.toFixed(
+        2
+      )}% 리스크를 사용하는 포지션 크기입니다.`;
 }
+
+// 10. onload
+window.onload = function () {
+  console.log("[ZAVIS] System Ready");
+
+  const searchBtn = $("search-btn");
+  if (searchBtn) searchBtn.addEventListener("click", runAnalysis);
+
+  const tickerInput = $("ticker-input");
+  if (tickerInput) {
+    tickerInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runAnalysis();
+      }
+    });
+  }
+
+  const posBtn = $("pos-calc-btn");
+  if (posBtn) {
+    posBtn.addEventListener("click", calcPositionSize);
+  }
+
+  fetchMacroData();
+};

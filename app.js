@@ -326,73 +326,73 @@ function generateDemoData(symbol) {
 
 // ===== 지표 헬퍼: EMA / RSI(Wilder) / MACD =====
 
-  // TradingView MAExp와 맞추기 위한 EMA
-  function calcEMA(values, period) {
-    const len = values.length;
-    if (!Array.isArray(values) || len < period) return null;
+// TradingView MAExp와 맞추기 위한 EMA
+function calcEMA(values, period) {
+  const len = values.length;
+  if (!Array.isArray(values) || len < period) return null;
 
-    const k = 2 / (period + 1);
+  const k = 2 / (period + 1);
 
-    // 초기값: 첫 period개 단순평균(SMA)
-    let sum = 0;
-    for (let i = 0; i < period; i++) {
-      sum += values[i];
-    }
-    let ema = sum / period;
+  // 초기값: 첫 period개 단순평균(SMA)
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += values[i];
+  }
+  let ema = sum / period;
 
-    // 이후부터는 순수 EMA 재귀
-    for (let i = period; i < len; i++) {
-      ema = values[i] * k + ema * (1 - k);
-    }
-    return ema;
+  // 이후부터는 순수 EMA 재귀
+  for (let i = period; i < len; i++) {
+    ema = values[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+// TradingView 기본 RSI(14)와 유사한 Wilder 방식
+function calcRSI_Wilder(closes, period = 14) {
+  const n = closes.length;
+  if (!Array.isArray(closes) || n <= period) return null;
+
+  let gains = 0;
+  let losses = 0;
+
+  // 1) 첫 period 구간: 단순 평균
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff >= 0) gains += diff;
+    else losses -= diff;
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+
+  // 2) 이후 구간: Wilder smoothing
+  for (let i = period + 1; i < n; i++) {
+    const diff = closes[i] - closes[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
   }
 
-  // TradingView 기본 RSI(14)와 유사한 Wilder 방식
-  function calcRSI_Wilder(closes, period = 14) {
-    const n = closes.length;
-    if (!Array.isArray(closes) || n <= period) return null;
-
-    let gains = 0;
-    let losses = 0;
-
-    // 1) 첫 period 구간: 단순 평균
-    for (let i = 1; i <= period; i++) {
-      const diff = closes[i] - closes[i - 1];
-      if (diff >= 0) gains += diff;
-      else losses -= diff;
-    }
-    let avgGain = gains / period;
-    let avgLoss = losses / period;
-
-    // 2) 이후 구간: Wilder smoothing
-    for (let i = period + 1; i < n; i++) {
-      const diff = closes[i] - closes[i - 1];
-      const gain = diff > 0 ? diff : 0;
-      const loss = diff < 0 ? -diff : 0;
-
-      avgGain = (avgGain * (period - 1) + gain) / period;
-      avgLoss = (avgLoss * (period - 1) + loss) / period;
-    }
-
-    if (avgLoss === 0) {
-      // 손실이 아예 없으면 RSI = 100으로 수렴
-      return 100;
-    }
-
-    const rs = avgGain / avgLoss;
-    const rsi = 100 - 100 / (1 + rs);
-    return rsi;
+  if (avgLoss === 0) {
+    // 손실이 아예 없으면 RSI = 100으로 수렴
+    return 100;
   }
 
-  // TradingView MACD(12,26,9) 기준 MACD 라인만 사용
-  function calcMACD(closes) {
-    if (!Array.isArray(closes) || closes.length < 26) return null;
-    const ema12 = calcEMA(closes, 12);
-    const ema26 = calcEMA(closes, 26);
-    if (ema12 == null || ema26 == null) return null;
-    const macd = ema12 - ema26;
-    return macd;
-  }
+  const rs = avgGain / avgLoss;
+  const rsi = 100 - 100 / (1 + rs);
+  return rsi;
+}
+
+// TradingView MACD(12,26,9) 기준 MACD 라인만 사용
+function calcMACD(closes) {
+  if (!Array.isArray(closes) || closes.length < 26) return null;
+  const ema12 = calcEMA(closes, 12);
+  const ema26 = calcEMA(closes, 26);
+  if (ema12 == null || ema26 == null) return null;
+  const macd = ema12 - ema26;
+  return macd;
+}
 
 // ────────────────────────────────
 // 스윙 포인트 → 지지/저항 레벨 클러스터링 헬퍼
@@ -450,13 +450,11 @@ function pickSupportResistance(clusters, lastPrice, isSupport) {
 
   // 2차: 현재가와의 거리 기준으로 정렬(더 “실전에서 쓰기 좋은” 레벨 우선)
   top.sort(
-    (a, b) =>
-      Math.abs(lastPrice - a.price) - Math.abs(lastPrice - b.price)
+    (a, b) => Math.abs(lastPrice - a.price) - Math.abs(lastPrice - b.price)
   );
 
   return top; // [0]이 1차 레벨, [1]이 2차 레벨 후보
 }
-
 
 // 5. 지표 계산 엔진 (지지·저항 + R:R + 스코어)
 function analyzeData(data) {
@@ -483,7 +481,7 @@ function analyzeData(data) {
   // === MACD (12,26) ===
   const macd = calcMACD(closes);
 
-    // === 지지·저항 스윙 포인트 (클러스터 + 최신 가중치) ===
+  // === 지지·저항 스윙 포인트 (클러스터 + 최신 가중치) ===
   let support1 = null;
   let support2 = null;
   let resistance1 = null;
@@ -584,7 +582,6 @@ function analyzeData(data) {
     target1 = lastPrice * 1.05;
     target2 = lastPrice * 1.15;
   }
-
 
   // === (NEW) 일일 변동률 & 거래량 비율 ===
   let dailyChangePct = null;
@@ -703,7 +700,6 @@ function analyzeData(data) {
     volumeRatio,
   };
 }
-
 
 // ===============================
 // 수급 패턴/Why-Today/전략 시나리오 헬퍼
@@ -881,6 +877,117 @@ function buildScenarios(data, analysis, flowInfo) {
   };
 }
 
+// 4) 캔들 패턴 디텍터 (최근 봉/3봉 기준)
+function detectCandlePattern(data, analysis) {
+  const { opens, closes, highs, lows } = data;
+  const n = closes.length;
+  if (!opens || opens.length !== n || n < 2) return null;
+
+  const patterns = [];
+
+  const addPattern = (label, note, priority) => {
+    patterns.push({ label, note, priority });
+  };
+
+  // 최근 1봉
+  const i = n - 1;
+  const o = opens[i];
+  const c = closes[i];
+  const h = highs[i];
+  const l = lows[i];
+
+  const body = Math.abs(c - o);
+  const range = Math.max(h, l, o, c) - Math.min(h, l, o, c) || 1e-9;
+  const bodyRatio = body / range;
+  const upperWick = h - Math.max(o, c);
+  const lowerWick = Math.min(o, c) - l;
+  const upperRatio = upperWick / range;
+  const lowerRatio = lowerWick / range;
+
+  const isBull = c > o;
+  const isBear = c < o;
+
+  // 장대양봉 / 장대음봉
+  if (bodyRatio >= 0.6 && isBull) {
+    addPattern(
+      "장대 양봉",
+      "강한 매수세가 한 번에 들어온 봉으로, 이후 눌림이 나와도 추세가 이어질 수 있는 자리입니다.",
+      80
+    );
+  } else if (bodyRatio >= 0.6 && isBear) {
+    addPattern(
+      "장대 음봉",
+      "강한 매도/청산이 나온 봉으로, 단기 반등이 와도 재차 저점을 테스트할 수 있는 구간입니다.",
+      80
+    );
+  }
+
+  // 망치형 / 역망치형
+  if (bodyRatio <= 0.4 && lowerRatio >= 0.5 && upperRatio <= 0.2) {
+    addPattern(
+      "망치형(hammer) 유사",
+      "아랫꼬리가 긴 망치형 유사 캔들입니다. 하락 추세 하단에서 출현했다면 단기 반등 시그널로 볼 수 있지만, 거래량 동반 여부가 중요합니다.",
+      70
+    );
+  } else if (bodyRatio <= 0.4 && upperRatio >= 0.5 && lowerRatio <= 0.2) {
+    addPattern(
+      "역망치형(inverted hammer) 유사",
+      "윗꼬리가 긴 역망치형 유사 캔들입니다. 상단 매도 압력이 강하게 나온 봉으로, 단기 피로 신호로 볼 수 있습니다.",
+      70
+    );
+  }
+
+  // 도지 / 스피닝탑
+  if (bodyRatio <= 0.15 && upperRatio >= 0.2 && lowerRatio >= 0.2) {
+    addPattern(
+      "도지/스피닝탑",
+      "몸통이 매우 작은 도지/스피닝탑 계열 캔들입니다. 단기 방향성 보다는 눈치보기·관망 구간으로 해석하는 편이 자연스럽습니다.",
+      60
+    );
+  }
+
+  // 최근 3봉 연속 패턴 (상승/하락 삼병 유사)
+  if (n >= 4) {
+    const c1 = closes[n - 1];
+    const c2 = closes[n - 2];
+    const c3 = closes[n - 3];
+    const o1 = opens[n - 1];
+    const o2 = opens[n - 2];
+    const o3 = opens[n - 3];
+
+    const up3 =
+      c1 > o1 && c2 > o2 && c3 > o3 && c1 > c2 && c2 > c3; // 연속 양봉 우상향
+    const down3 =
+      c1 < o1 && c2 < o2 && c3 < o3 && c1 < c2 && c2 < c3; // 연속 음봉 우하향
+
+    if (up3) {
+      addPattern(
+        "상승 3봉 패턴(상승삼병 유사)",
+        "최근 3개 봉이 모두 양봉이면서 저점과 종가가 우상향 중입니다. 단기 상승 추세가 살아 있는 패턴으로, 과열 구간만 아니라면 눌림 매수 관점이 유효합니다.",
+        75
+      );
+    } else if (down3) {
+      addPattern(
+        "하락 3봉 패턴(흑삼병 유사)",
+        "최근 3개 봉이 모두 음봉이면서 저점과 종가가 우하향 중입니다. 단기 하락 추세가 강화되는 패턴으로, 무리한 역추세 진입은 피하는 것이 좋습니다.",
+        75
+      );
+    }
+  }
+
+  if (!patterns.length) {
+    return {
+      label: "특이 패턴 없음",
+      note:
+        "최근 캔들 구조에서 뚜렷한 단기 패턴 신호는 포착되지 않습니다. 추세·지지/저항과 수급 기준으로 해석하는 편이 자연스럽습니다.",
+    };
+  }
+
+  // 우선순위 높은 패턴 하나만 채택
+  patterns.sort((a, b) => b.priority - a.priority);
+  return patterns[0];
+}
+
 // 6. UI 업데이트
 function updateUI(data, analysis, fxRate) {
   const priceEl = $("ticker-price");
@@ -990,19 +1097,38 @@ function updateUI(data, analysis, fxRate) {
   }
 
   if (waveEl) {
+    const { support1, support2, resistance1, resistance2 } = analysis;
+
     if (
-      analysis.support1 &&
-      analysis.resistance1 &&
-      analysis.riskPct &&
-      analysis.rewardPct1
+      support1 &&
+      resistance1 &&
+      analysis.riskPct != null &&
+      analysis.rewardPct1 != null
     ) {
+      const s1 = formatUSD(support1);
+      const s2 = support2 ? formatUSD(support2) : null;
+      const r1 = formatUSD(resistance1);
+      const r2 = resistance2 ? formatUSD(resistance2) : null;
+
+      let levelTxt = `주요 지지선: ${s1}`;
+      if (s2) levelTxt += ` / 2차 지지선: ${s2}`;
+      levelTxt += `, 주요 저항선: ${r1}`;
+      if (r2) levelTxt += ` / 2차 저항선: ${r2}`;
+
+      let majorSupportTxt = "";
+      if (support2) {
+        majorSupportTxt =
+          ` 메이저 지지 구간은 ${formatUSD(support2)} ~ ${formatUSD(
+            support1
+          )} 근처로 보는 것이 자연스럽습니다.`;
+      }
+
       waveEl.textContent =
-        `현재가(${formatUSD(analysis.price)}) 기준 ` +
-        `주요 지지선: ${formatUSD(analysis.support1)}, ` +
-        `주요 저항선: ${formatUSD(analysis.resistance1)}. ` +
+        `현재가(${formatUSD(analysis.price)}) 기준 ${levelTxt}. ` +
         `위로 +${analysis.rewardPct1.toFixed(
           1
-        )}%, 아래로 -${analysis.riskPct.toFixed(1)}% 여유.`;
+        )}%, 아래로 -${analysis.riskPct.toFixed(1)}% 여유.` +
+        majorSupportTxt;
     } else {
       waveEl.textContent =
         `현재가(${formatUSD(analysis.price)})가 20일선(${formatUSD(
@@ -1017,6 +1143,7 @@ function updateUI(data, analysis, fxRate) {
   const flowInfo = analysis.flowInfo;
   const whyInfo = analysis.whyInfo;
   const scenarioInfo = analysis.scenarioInfo;
+  const candleInfo = analysis.candleInfo;
 
   // 1) Supply (수급) – 거래량+봉구조 기반 실전 해석
   if (supplyEl) {
@@ -1028,24 +1155,36 @@ function updateUI(data, analysis, fxRate) {
     }
   }
 
-  // 2) Pattern – 지지/저항 + 시나리오 기반
+  // 2) Pattern – 캔들 패턴 + 시나리오 기반
   if (patternEl) {
     let txt =
       "특정 패턴(삼각수렴, 박스, 헤드앤숄더 등)을 자동 인식하진 않지만, 가격 위치와 지지·저항 기준으로 시나리오를 정리합니다.";
+
+    const parts = [];
+
+    if (candleInfo) {
+      parts.push(
+        `최근 일봉 기준 **${candleInfo.label}** 패턴입니다. ${candleInfo.note}`
+      );
+    }
 
     if (scenarioInfo && Array.isArray(scenarioInfo.scenarios)) {
       const active = scenarioInfo.scenarios.filter((s) => s.condition);
 
       if (active.length > 0) {
-        // 조건을 만족하는 시나리오가 하나라도 있으면 가장 먼저 걸리는 것 기준으로 출력
         const s0 = active[0];
-        txt = `${s0.name} — ${s0.comment}`;
+        parts.push(`${s0.name} — ${s0.comment}`);
       } else {
-        // 조건 만족 시나리오가 없으면 기본 코멘트
-        txt =
-          "현재 가격/RSI/지지·저항 기준으로 뚜렷하게 유리한 매매 시나리오는 보이지 않습니다. " +
-          "기존 포지션 관리 또는 관망 위주의 구간으로 보는 편이 자연스럽습니다.";
+        parts.push(
+          "현재 가격/RSI/지지·저항 기준으로 뚜렷하게 유리한 매매 시나리오는 보이지 않습니다. 기존 포지션 관리 또는 관망 위주의 구간으로 보는 편이 자연스럽습니다."
+        );
       }
+    }
+
+    if (parts.length > 0) {
+      txt = parts.join(" ");
+      // 마크다운 기호 제거 (간단 치환)
+      txt = txt.replace(/\*\*/g, "");
     }
 
     patternEl.textContent = txt;
@@ -1060,7 +1199,6 @@ function updateUI(data, analysis, fxRate) {
       newsEl.textContent = `${whyInfo.whyLabel} · ${whyInfo.whyNote}`;
     }
   }
-
 
   // Fundamentals 더미 텍스트는 기존 유지
   if (fundEl) {
@@ -1127,16 +1265,14 @@ function updateUI(data, analysis, fxRate) {
       allow_symbol_change: false,
 
       studies: [
-        "RSI@tv-basicstudies",
-        "MACD@tv-basicstudies",
-        "BB@tv-basicstudies",
         { id: "MAExp@tv-basicstudies", inputs: { length: 20 } },
         { id: "MAExp@tv-basicstudies", inputs: { length: 60 } },
         { id: "MAExp@tv-basicstudies", inputs: { length: 120 } },
-
+        "RSI@tv-basicstudies",
+        "MACD@tv-basicstudies",
+        "BB@tv-basicstudies",
       ],
     });
-
   } else {
     console.warn("[ZAVIS] TradingView not loaded");
   }
@@ -1305,13 +1441,16 @@ async function runAnalysis() {
       const fx = await fetchFxRate();
       const analysis = analyzeData(data);
 
+      // === Step B: Flow / Why-Today / Scenario / Candle 패턴 연결 ===
       const flowInfo = calcFlowSignal(data, analysis);
       const whyInfo = calcWhyTodaySignal(data, analysis, flowInfo);
       const scenarioInfo = buildScenarios(data, analysis, flowInfo);
+      const candleInfo = detectCandlePattern(data, analysis);
 
       analysis.flowInfo = flowInfo;
       analysis.whyInfo = whyInfo;
       analysis.scenarioInfo = scenarioInfo;
+      analysis.candleInfo = candleInfo;
 
       // 포지션 계산기에서 쓸 마지막 분석 결과 저장
       lastAnalysis = analysis;
